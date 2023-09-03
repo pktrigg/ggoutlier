@@ -4,7 +4,7 @@
 #description:	python module to scan a folder structure, convert raw MBES files to Foxglove MCAP file format so we can easily QC and analyse data using Foxgloveextract the ellipsoidal heigths from the RAW files and create spatial datasets for creating a hydroid / geoid for a survey area
 ######################
 # DONE
-# basic script
+# basic script structure
 # clean out SSDM
 # simplify command line args
 # process entire folder
@@ -39,6 +39,7 @@ import multiprocesshelper
 # sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 import fileutils
 import kmall
+import ggmbes
 # from py7k import s7kreader
 # from pygsf import GSFREADER
 
@@ -146,20 +147,20 @@ def processKMALL(filename, outfilename, step):
 
 				#add ping header to mcap file...
 
-				# ph = ggmbes.GGPING()
-				# ph.timestamp 			= to_timestamp(datagram.date)
-				# ph.longitude 			= datagram.longitude
-				# ph.latitude 			= datagram.latitude
-				# ph.ellipsoidalheight 	= datagram.ellipsoidHeightReRefPoint_m
-				# ph.heading		 		= datagram.heading
-				# ph.pitch			 	= 0
-				# ph.roll			 		= 0
-				# ph.heave			 	= 0
-				# ph.tidecorrector	 	= 0 #datagram.txTransducerDepth_m # or is it this one? datagram.z_waterLevelReRefPoint_m
-				# ph.waterLevelReRefPoint_m = datagram.z_waterLevelReRefPoint_m
-				# ph.txTransducerDepth_m = datagram.txTransducerDepth_m
+				ph = ggmbes.GGPING()
+				ph.timestamp 			= to_timestamp(datagram.date)
+				ph.longitude 			= datagram.longitude
+				ph.latitude 			= datagram.latitude
+				ph.ellipsoidalheight 	= datagram.ellipsoidHeightReRefPoint_m
+				ph.heading		 		= datagram.heading
+				ph.pitch			 	= 0
+				ph.roll			 		= 0
+				ph.heave			 	= 0
+				ph.tidecorrector	 	= 0 #datagram.txTransducerDepth_m # or is it this one? datagram.z_waterLevelReRefPoint_m
+				ph.waterLevelReRefPoint_m = datagram.z_waterLevelReRefPoint_m
+				ph.txTransducerDepth_m = datagram.txTransducerDepth_m
 				# pingdata.append(ph)
-
+				print (ph)
 			if (typeofdatagram == '#SKM'):
 				datagram.read()
 				for sample in datagram.data:

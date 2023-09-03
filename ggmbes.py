@@ -3,17 +3,7 @@
 #by:			p.kennedy@guardiangeomatics.com
 #description:	python module to represent MBES data so we can QC, compute and merge.
 
-import os.path
-import struct
 import pprint
-import time
-import datetime
-import math
-import random
-from datetime import datetime
-from datetime import timedelta
-from statistics import mean
-import numpy as np
 
 ###############################################################################
 class GGPING:
@@ -34,4 +24,6 @@ class GGPING:
 		self.txTransducerDepth_m = 0
 		self.hydroidstandarddeviation = 0
 	
-
+	###############################################################################
+	def __str__(self):
+		return pprint.pformat(vars(self))
