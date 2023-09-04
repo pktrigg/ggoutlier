@@ -27,15 +27,16 @@ import glob
 import ggmbes
 import mcap
 from sklearn.cluster import DBSCAN
+import statistics
 
-import pyproj
+# import pyproj
 
 # from sqlalchemy import false
 import timeseries
 import fileutils
 import geodetic
 
-#from open3d import * 
+import open3d as o3d
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import proj3d
 from matplotlib.colors import LightSource
@@ -51,7 +52,9 @@ def main():
 	files = []
 	args = parser.parse_args()
 	# args.inputFile = "/Users/paulkennedy/Documents/development/sampledata/0822_20210330_091839.kmall"
-	args.inputFile = "/Users/paulkennedy/Documents/development/sampledata/Block_B_4542_20210906_234804.kmall"
+	args.inputFile = "c:/sampledata/EM304_0002_20220406_122446.kmall"
+	# args.inputFile = "c:/sampledata/EM2040_0822_20210330_091839.kmall"
+	
 	if len (args.inputFile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
 		inputfolder = os.getcwd()
@@ -245,11 +248,11 @@ def modifyflags(filename, args):
 			# 	bytes [beam.beambyteoffset +7] = 1
 			# 	# now write out the modified byte array
 			# 	outfileptr.write(bytes)
+			counter = counter + 1
 		else:
 			outfileptr.write(bytes)
 
 		update_progress("Extracting Point Cloud", counter/recordcount)
-		counter = counter + 1
 
 		if counter == 100:
 			break
@@ -259,11 +262,31 @@ def modifyflags(filename, args):
 	r.close()
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + ".txt")
-	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr]*500)
+	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
 	print("Saving point cloud to %s" % (outfile)) 
 	print("Point count to %d" % (len(xyz))) 
-	np.savetxt(outfile, (xyz), fmt='%.10f', delimiter=',', newline='\n')
+	np.savetxt(outfile, (xyz), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 
+	pcd = o3d.geometry.PointCloud()
+	pcd.points = o3d.utility.Vector3dVector(xyz)
+
+	obb = pcd.get_oriented_bounding_box()
+	obb.color = (0,0,0)
+
+	print("Statistical oulier removal")
+	voxel_down_pcd = pcd.voxel_down_sample(voxel_size=0.0002)
+	cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=3.0) # 1.51
+	cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=3.0) # 1.89
+	cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=5, std_ratio=3.0) # 2.02
+	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0) # 3.54%
+	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.0) # 9.56
+
+	display_inlier_outlier(voxel_down_pcd, ind)
+
+	# o3d.visualization.draw_geometries([pcd, obb])
+
+	# pc = open3d.io.read_point_cloud(outfile, format='xyz') 
+	print (pcd)
 	# eps = 0.1  # DBSCAN epsilon parameter
 	# min_samples = 1  # DBSCAN minimum number of points
 	# despike_point_cloud(xyz, eps, min_samples)
@@ -289,7 +312,9 @@ def modifyflags(filename, args):
 	xrange = max(xyz[:,0]) - min(xyz[:,0])
 	yrange = max(xyz[:,1]) - min(xyz[:,1])
 	maxrange = max(xrange, yrange)
-	eps = max(xyz[:, 2]) * 0.01 # 1% waterdepth  bigger number rejects fewer points
+	mediandepth = statistics.median(xyz[:, 2])
+	print ("WaterDepth %.2f" % (mediandepth))
+	eps = mediandepth * 0.05 # 1% waterdepth  bigger number rejects fewer points
 	# eps = 0.1  # DBSCAN epsilon parameter
 	min_samples = 5  # DBSCAN minimum number of points
 	rejected = despike_point_cloud(xyz, eps, min_samples)
@@ -316,6 +341,29 @@ def modifyflags(filename, args):
 
 	return
 
+
+###############################################################################
+def display_inlier_outlier(cloud, ind):
+	inlier_cloud = cloud.select_by_index(ind)
+	outlier_cloud = cloud.select_by_index(ind, invert=True)
+	print (inlier_cloud)
+	print (outlier_cloud)
+	print ("Percentage rejection %.2f" % (100 * (len(outlier_cloud.points) / len(inlier_cloud.points))))
+	print("Showing outliers (red) and inliers (gray): ")
+	outlier_cloud.paint_uniform_color([1, 0, 0])
+	inlier_cloud.paint_uniform_color([0.8, 0.8, 0.8])
+
+	# hull = inlier_cloud.compute_convex_hull()
+	# hull_ls = o3d.geometry.LineSet.create_from_triangle_mesh(hull)
+	# hull_ls.paint_uniform_color((1, 0, 0))
+	# hull_ls = o3d.geometry.LineSet.create_from_triangle_mesh(hull.to to_legacy())
+	# hull.paint_uniform_color((1, 0, 0))
+
+	o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
+										# zoom=0.3412,
+										# front=[0.4257, -0.2125, -0.8795],
+										# lookat=[2.6172, 2.0475, 1.532],
+										# up=[-0.0694, -0.9768, 0.2024])
 ###############################################################################
 def computebathypointcloud(datagram, geo):
 	'''using the MRZ datagram, efficiently compute a numpy array of the point clouds  '''
