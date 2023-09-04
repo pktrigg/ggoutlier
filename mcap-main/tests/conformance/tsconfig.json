@@ -1,0 +1,18 @@
+{
+  "extends": "@foxglove/tsconfig/base",
+  "include": ["./**/*"],
+  "compilerOptions": {
+    "rootDir": "../..",
+    "noEmit": true,
+    "lib": ["es2020", "dom"],
+    "paths": {
+      "@mcap/core": ["../../typescript/core/src"]
+    },
+
+    // required for tsconfig-paths https://github.com/dividab/tsconfig-paths/issues/143
+    "baseUrl": "."
+  },
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  }
+}

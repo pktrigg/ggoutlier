@@ -1,0 +1,43 @@
+// -*- jsonc -*-
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.trimTrailingWhitespace": true,
+
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "prettier.prettierPath": "./node_modules/prettier",
+  "eslint.packageManager": "yarn",
+  "eslint.options": {
+    "reportUnusedDisableDirectives": "error"
+  },
+  "jest.jestCommandLine": "yarn workspace @mcap/core test",
+
+  "cSpell.enabled": true,
+
+  "search.exclude": {
+    "**/node_modules": true,
+    "tests/conformance/data": true,
+    "python/**/build": true,
+    "python/docs/*-apidoc": true
+  },
+
+  "python.formatting.provider": "black",
+  "python.analysis.typeCheckingMode": "strict",
+  "python.linting.flake8Enabled": true,
+  "python.linting.enabled": true,
+  "python.linting.flake8Args": ["--config", "python/.flake8"],
+  "python.analysis.extraPaths": [
+    "./python/mcap",
+    "./python/mcap-protobuf-support",
+    "./python/mcap-ros1-support",
+    "./python/mcap-ros2-support"
+  ],
+
+  // https://github.com/microsoft/vscode-cpptools/issues/722
+  "C_Cpp.autoAddFileAssociations": false,
+  "C_Cpp.default.cppStandard": "c++17"
+}
