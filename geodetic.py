@@ -139,6 +139,23 @@ def main():
 	sec = abs(alpha21 * 3600 - deg * 3600) - min * 60
 	print (" Reverse azimuth = %3i\xF8%3i\' %6.3f\"\n\n" % ( deg, min, sec ))
 
+###############################################################################
+def epsgfromlonglat (longitude, latitude):
+	from pyproj import CRS
+	from pyproj.aoi import AreaOfInterest
+	from pyproj.database import query_utm_crs_info
+
+	utm_crs_list = query_utm_crs_info(
+		datum_name="WGS 84",
+		area_of_interest=AreaOfInterest(
+			west_lon_degree=longitude,
+			south_lat_degree=latitude,
+			east_lon_degree=longitude,
+			north_lat_degree=latitude,
+		),
+	)
+	utm_crs = CRS.from_epsg(utm_crs_list[0].code)
+	return utm_crs_list[0].code
 
 ###############################################################################
 def medfilt (x, k):
@@ -574,6 +591,8 @@ class geodesy:
 			return x,y
 		else:
 			return easting, northing
+
+
 
 # Test driver
 

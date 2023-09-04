@@ -44,8 +44,9 @@ from matplotlib.colors import LightSource
 	
 ###########################################################################
 def main():
+
 	parser = ArgumentParser(description='Read a KMALL file.')
-	parser.add_argument('-epsg', 	action='store', 		default="4326",	dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
+	parser.add_argument('-epsg', 	action='store', 		default="0",	dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
 	parser.add_argument('-i', dest='inputFile', action='store', default="", help='Input filename.pos to process.')
 	parser.add_argument('-s', 		action='store', 		default="1",	dest='step', 			help='decimate the data to reduce the output size. [Default: 1]')
 	
@@ -219,14 +220,19 @@ def modifyflags(filename, args):
 	print("Loading Point Cloud...")
 	pointcloud = Cpointcloud()
 
-	#load the python proj projection object library if the user has requested it
-	geo = geodetic.geodesy(args.epsg)
 
 	#create an output file....
 	outfilename = fileutils.addFileNameAppendage(filename, "_CLEANED")
 	outfileptr = open(outfilename, 'wb')
 
 	r = kmallreader(filename)
+
+	if args.epsg == '0':
+		approxlongitude, approxlatitude = r.getapproximatepositon()
+		args.epsg = geodetic.epsgfromlonglat (approxlongitude, approxlatitude)
+
+	#load the python proj projection object library if the user has requested it
+	geo = geodetic.geodesy(args.epsg)
 
 	recordcount, starttimestamp, enftimestamp = r.getRecordCount()
 
@@ -263,7 +269,7 @@ def modifyflags(filename, args):
 	r.close()
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + ".txt")
-	pointcloud.zarr  = pointcloud.zarr # * 10.0
+	pointcloud.zarr  = pointcloud.zarr * 10.0
 	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
 	print("Saving point cloud to %s" % (outfile)) 
 	print("Point count to %d" % (len(xyz))) 
@@ -342,7 +348,6 @@ def modifyflags(filename, args):
 	# plt.show()
 
 	return
-
 
 ###############################################################################
 def display_inlier_outlier(cloud, ind):
@@ -578,6 +583,25 @@ class kmallreader:
 		return count, start, end
 
 	###############################################################################
+	def getRecordCount(self):
+		'''read through the entire file as fast as possible to get a count of all records.  useful for progress bars so user can see what is happening'''
+		count = 0
+		start = 0
+		end = 0
+		self.rewind()
+
+		numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
+		start = time_sec + time_nanosec/1000000000
+		self.rewind()
+		while self.moreData():
+			numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
+			self.fileptr.seek(numberofbytes, 1)
+			count += 1
+		self.rewind()
+		end = time_sec + time_nanosec/1000000000
+		return count, start, end
+
+	###############################################################################
 	def readDatagram(self):
 		'''read the datagram header.  This permits us to skip datagrams we do not support'''
 		numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
@@ -611,6 +635,36 @@ class kmallreader:
 			dg = UNKNOWN_RECORD(self.fileptr, numberofbytes, typeofdatagram)
 			return dg.typeofdatagram, dg
 			# self.fileptr.seek(numberofbytes, 1)
+
+###############################################################################
+	def getapproximatepositon(self):
+		'''read the first position record so we have a clue where we are in the world'''
+		longitude = 0
+		latitude = 0
+		self.rewind()
+		while self.moreData():
+			try:
+				# print(self.fileptr.tell())
+				typeofdatagram, datagram = self.readDatagram()
+				if (typeofdatagram == '#SPO'):
+					datagram.read()
+					# trap bad values
+					if datagram.latitude < -90:
+						continue
+					if datagram.latitude > 90:
+						continue
+					if datagram.longitude < -180:
+						continue
+					if datagram.longitude > 180:
+						continue
+					longitude = datagram.longitude
+					latitude = datagram.latitude
+					break
+			except:
+				e = sys.exc_info()[0]
+				print("Error: %s.  Please check file.  it seems to be corrupt: %s" % (e, self.fileName))
+		self.rewind()
+		return longitude, latitude
 
 ###############################################################################
 	def loadNavigation(self, firstRecordOnly=False, step=0):
