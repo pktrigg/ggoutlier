@@ -247,7 +247,7 @@ def modifyflags(filename, args):
 		if typeofdatagram == '#MRZ':
 			datagram.read()
 			x, y, z, q = computebathypointcloud(datagram, geo)
-			pointcloud.add(x, y, z, q)
+			pointcloud.add(x, y, z, q) # pkpkpk 
 
 			#write out the kmall datagrem with modified beam flags
 			# for beam in datagram.beams:
@@ -261,7 +261,7 @@ def modifyflags(filename, args):
 
 		update_progress("Extracting Point Cloud", counter/recordcount)
 
-		if counter == 1000:
+		if counter == 10000:
 			break
 		continue
 
