@@ -54,6 +54,7 @@ def main():
 	# args.inputFile = "/Users/paulkennedy/Documents/development/sampledata/0822_20210330_091839.kmall"
 	args.inputFile = "c:/sampledata/EM304_0002_20220406_122446.kmall"
 	# args.inputFile = "c:/sampledata/EM2040_0822_20210330_091839.kmall"
+	args.inputFile = "c:/sampledata/DRIX_0003_20230817_033515_Orca1.kmall"
 	
 	if len (args.inputFile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
@@ -254,7 +255,7 @@ def modifyflags(filename, args):
 
 		update_progress("Extracting Point Cloud", counter/recordcount)
 
-		if counter == 100:
+		if counter == 1000:
 			break
 		continue
 
@@ -262,6 +263,7 @@ def modifyflags(filename, args):
 	r.close()
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + ".txt")
+	pointcloud.zarr  = pointcloud.zarr # * 10.0
 	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
 	print("Saving point cloud to %s" % (outfile)) 
 	print("Point count to %d" % (len(xyz))) 
@@ -308,36 +310,36 @@ def modifyflags(filename, args):
 	# min_samples = 3  # DBSCAN minimum number of points
 	# despike_point_cloud(xyz, eps, min_samples)
 
-	print ("DBSCAN...")
-	xrange = max(xyz[:,0]) - min(xyz[:,0])
-	yrange = max(xyz[:,1]) - min(xyz[:,1])
-	maxrange = max(xrange, yrange)
-	mediandepth = statistics.median(xyz[:, 2])
-	print ("WaterDepth %.2f" % (mediandepth))
-	eps = mediandepth * 0.05 # 1% waterdepth  bigger number rejects fewer points
-	# eps = 0.1  # DBSCAN epsilon parameter
-	min_samples = 5  # DBSCAN minimum number of points
-	rejected = despike_point_cloud(xyz, eps, min_samples)
-	print ("DBSCAN Complete")
-	print ("Percentage rejected %.2f" % (len(rejected)/ len(xyz) * 100))	
-	fig = plt.figure(figsize=(10, 6))
-	ax = fig.add_subplot(111, projection='3d')
-	# create light source object.
-	# ls = LightSource(azdeg=0, altdeg=65)
+	# print ("DBSCAN...")
+	# xrange = max(xyz[:,0]) - min(xyz[:,0])
+	# yrange = max(xyz[:,1]) - min(xyz[:,1])
+	# maxrange = max(xrange, yrange)
+	# mediandepth = statistics.median(xyz[:, 2])
+	# print ("WaterDepth %.2f" % (mediandepth))
+	# eps = mediandepth * 0.05 # 1% waterdepth  bigger number rejects fewer points
+	# # eps = 0.1  # DBSCAN epsilon parameter
+	# min_samples = 5  # DBSCAN minimum number of points
+	# rejected = despike_point_cloud(xyz, eps, min_samples)
+	# print ("DBSCAN Complete")
+	# print ("Percentage rejected %.2f" % (len(rejected)/ len(xyz) * 100))	
+	# fig = plt.figure(figsize=(10, 6))
+	# ax = fig.add_subplot(111, projection='3d')
+	# # create light source object.
+	# # ls = LightSource(azdeg=0, altdeg=65)
 	
-	# shade data, creating an rgb array.
-	# rgb = ls.shade(z, plt.cm.RdYlBu)
+	# # shade data, creating an rgb array.
+	# # rgb = ls.shade(z, plt.cm.RdYlBu)
 	
-	zrange = max(xyz[:,2]) - min(xyz[:,2])
-	xyzdisplay = xyz[::2]
-	ax.scatter(xyzdisplay[:, 0], xyzdisplay[:, 1], xyzdisplay[:, 2], color = 'lightgrey', s=5)
-	ax.scatter(rejected[:, 0], rejected[:, 1], rejected[:, 2], color = 'red', s=50)
-	ax.set_xlim3d(min(xyz[:,0]), min(xyz[:,0]) + maxrange)
-	zscale = 5
-	ax.set_zlim3d(min(xyz[:,1]), (min(xyz[:,1]) + maxrange) * 5)
-	ax.set_zlim3d(min(xyz[:,2]), (min(xyz[:,2]) + maxrange) * 5)
+	# zrange = max(xyz[:,2]) - min(xyz[:,2])
+	# xyzdisplay = xyz[::2]
+	# ax.scatter(xyzdisplay[:, 0], xyzdisplay[:, 1], xyzdisplay[:, 2], color = 'lightgrey', s=5)
+	# ax.scatter(rejected[:, 0], rejected[:, 1], rejected[:, 2], color = 'red', s=50)
+	# ax.set_xlim3d(min(xyz[:,0]), min(xyz[:,0]) + maxrange)
+	# zscale = 5
+	# ax.set_zlim3d(min(xyz[:,1]), (min(xyz[:,1]) + maxrange) * 5)
+	# ax.set_zlim3d(min(xyz[:,2]), (min(xyz[:,2]) + maxrange) * 5)
 
-	plt.show()
+	# plt.show()
 
 	return
 

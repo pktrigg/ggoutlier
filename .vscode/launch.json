@@ -11,7 +11,7 @@
 			//"python": "c:/python/python.exe",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
 			// "args": ["-i", "/Users/paulkennedy/Documents/development/sampledata", "-reprocess", "-cpu", "1"]
-			"args": ["-epsg", "32752", "-s", "100"]
+			"args": ["-epsg", "32739", "-s", "100"]
 		}
 	]
 }
