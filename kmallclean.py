@@ -3,6 +3,20 @@
 #by:			paul.kennedy@guardiangeomatics.com
 #description:   python module to read a Kongsberg KMALL file, create a point cloud, identify outliers, write out a NEW kmall file with flags set
 
+#done
+#reading of a kmall file to a point cloud
+#pass pcd to open3d
+#view pcd file
+#find outliers
+#save inliers, outliers to a file
+
+#todo
+#rewrite rejected records to a new kmall file
+#option to reject n percent of the pcd
+#option to use different outlier algorithms
+#create tif file from inliers
+#
+
 import os.path
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
