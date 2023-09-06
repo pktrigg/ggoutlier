@@ -205,7 +205,8 @@ def computebathypointcloud(datagram, geo):
 	for beam in datagram.beams:
 		beam.east, beam.north = geo.convertToGrid((beam.deltaLongitude_deg + datagram.longitude), (beam.deltaLatitude_deg + datagram.latitude))
 		beam.depth = beam.z_reRefPoint_m - datagram.txTransducerDepth_m
-
+		# beam.depth = beam.z_reRefPoint_m - datagram.z_waterLevelReRefPoint_m
+		
 	npeast = np.fromiter((beam.east for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npnorth = np.fromiter((beam.north for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npdepth = np.fromiter((beam.depth for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)

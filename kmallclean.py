@@ -9,22 +9,25 @@
 #view pcd file
 #find outliers
 #save inliers, outliers to a file
+#add option to clip on angle
 
 #todo
 #rewrite rejected records to a new kmall file
 #option to reject n percent of the pcd
 #option to use different outlier algorithms
 #create tif file from inliers
-#
 
 import os.path
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
+import math
 import numpy as np
 import open3d as o3d
 import sys
 import time
 import glob
+import rasterio
+from rasterio.transform import Affine
 
 import kmall
 import fileutils
@@ -37,6 +40,7 @@ def main():
 	parser.add_argument('-epsg', 	action='store', 		default="0",	dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
 	parser.add_argument('-i', dest='inputFile', action='store', default="", help='Input filename.pos to process.')
 	parser.add_argument('-s', 		action='store', 		default="1",	dest='step', 			help='decimate the data to reduce the output size. [Default: 1]')
+	parser.add_argument('-c', 		action='store', 		default="45",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
 	
 	files = []
 	args = parser.parse_args()
@@ -62,6 +66,7 @@ def kmallcleaner(filename, args):
 	'''we then set the beam flags to reject files we think are outliers and write the kmall file to a new file'''
 	
 	counter = 0
+	clip = float(args.clip)
 
 	print("Loading Point Cloud...")
 	pointcloud = kmall.Cpointcloud()
@@ -91,8 +96,12 @@ def kmallcleaner(filename, args):
 		bytes = datagram.loadbytes() # get a hold of the bytes for the ping so we can modify them and write to a new file.
 		if typeofdatagram == '#MRZ':
 			datagram.read()
+			# clip the outer beams...
+			if clip > 0:
+				clipper(datagram, clip)
+
 			x, y, z, q = computebathypointcloud(datagram, geo)
-			pointcloud.add(x, y, z, q) # pkpkpk 
+			pointcloud.add(x, y, z, q) # pkpkpk
 			update_progress("Extracting Point Cloud", counter/recordcount)
 			counter = counter + 1
 
@@ -136,7 +145,7 @@ def kmallcleaner(filename, args):
 	#outlier removal by radius
 	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
 	nb_points=3
-	radius=0.4
+	radius=0.5
 	cl, ind = voxel_down_pcd.remove_radius_outlier(nb_points= nb_points, radius=radius)
 
 	inlier_cloud = voxel_down_pcd.select_by_index(ind, invert=False)
@@ -149,6 +158,10 @@ def kmallcleaner(filename, args):
 	# inlier_cloud = voxel_down_pcd.select_by_index(ind, invert=False)
 	np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	
+	outfilename = os.path.join(outfile + ".tif")
+	saveastif(outfilename, geo, inlier_cloud)
+
+
 	# display_inlier_outlier(voxel_down_pcd, ind)
 
 	# o3d.visualization.draw_geometries([pcd, obb])
@@ -209,6 +222,66 @@ def kmallcleaner(filename, args):
 
 	return
 
+
+###############################################################################
+def saveastif(outfilename, geo, inlier_cloud, resolution=1):
+
+	pcd = np.asarray(inlier_cloud.points)
+	xmin = pcd.min(axis=0)[0]
+	ymin = pcd.min(axis=0)[1]
+	zmin = pcd.min(axis=0)[2]
+	
+	xmax = pcd.max(axis=0)[0]
+	ymax = pcd.max(axis=0)[1]
+	zmax = pcd.max(axis=0)[2]
+
+
+	xres 	= resolution
+	yres 	= resolution
+	width 	= math.ceil((xmax - xmin) / resolution)
+	height 	= math.ceil((ymax - ymin) / resolution)
+
+	transform = Affine.translation(xmin - xres / 2, ymin - yres / 2) * Affine.scale(xres, yres)
+	#gt = (X_topleft, X_resolution, 0, Y_topleft, 0, Y_resolution)
+	# transform = Affine.translation(xmin, ymax)
+	# transform = rasterio.Affine(xmin, xres, 0, ymax, 0, -yres)
+	
+	from rasterio.transform import from_origin
+	transform = from_origin(xmin, ymax, xres, yres)
+
+	# save to file...
+	src= rasterio.open(
+			outfilename,
+			mode="w",
+			driver="GTiff",
+			height=height,
+			width=width,
+			count=1,
+			dtype='float32',
+			crs=geo.projection.srs,
+			transform=transform,
+	) 
+	# populate the numpy array with the values....
+	arr = np.zeros((height+2, width+2), dtype=float)
+	for row in pcd:
+		px = math.floor(xmax - row[0])
+		py = math.floor(ymax - row[1])
+		# py, px = src.index(row[0], row[1])
+		arr[py, width - px] = row[2]
+	
+	src.write(arr, 1)
+
+	src.close()
+
+###############################################################################
+def clipper(datagram, clip):
+	'''using the datagram, reject if the take off angle is outside the clip limit'''
+
+	for beam in datagram.beams:
+		if abs(beam.beamAngleReRx_deg) > clip:
+			beam.detectionType = 2 # reject the beam
+			# beam.rejectionInfo1 = 
+
 ###############################################################################
 def display_inlier_outlier(cloud, ind):
 	inlier_cloud = cloud.select_by_index(ind)
@@ -231,6 +304,8 @@ def display_inlier_outlier(cloud, ind):
 										# front=[0.4257, -0.2125, -0.8795],
 										# lookat=[2.6172, 2.0475, 1.532],
 										# up=[-0.0694, -0.9768, 0.2024])
+
+###############################################################################
 ###############################################################################
 def computebathypointcloud(datagram, geo):
 	'''using the MRZ datagram, efficiently compute a numpy array of the point clouds  '''
@@ -238,7 +313,8 @@ def computebathypointcloud(datagram, geo):
 	for beam in datagram.beams:
 		beam.east, beam.north = geo.convertToGrid((beam.deltaLongitude_deg + datagram.longitude), (beam.deltaLatitude_deg + datagram.latitude))
 		beam.depth = beam.z_reRefPoint_m + datagram.txTransducerDepth_m
-
+		# beam.depth = beam.z_reRefPoint_m - datagram.z_waterLevelReRefPoint_m
+		
 	npeast = np.fromiter((beam.east for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npnorth = np.fromiter((beam.north for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npdepth = np.fromiter((beam.depth for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
