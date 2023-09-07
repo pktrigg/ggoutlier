@@ -3,19 +3,23 @@
 #by:			paul.kennedy@guardiangeomatics.com
 #description:   python module to read a Kongsberg KMALL file, create a point cloud, identify outliers, write out a NEW kmall file with flags set
 
-#done
+#done##########################################
 #reading of a kmall file to a point cloud
 #pass pcd to open3d
 #view pcd file
 #find outliers
 #save inliers, outliers to a file
 #add option to clip on angle
-
-#todo
-#rewrite rejected records to a new kmall file
-#option to reject n percent of the pcd
-#option to use different outlier algorithms
 #create tif file from inliers
+#option to reject n percent of the pcd
+#create tif file of raw data
+#create a tif file of inliers
+#create a tif file of outliers
+#optionally fill the tif file to interpolate.  we need this for the revalidation
+
+#todo##########################################
+#validate each outlier against the results and re-approve if it is now acceptable
+#rewrite rejected records to a new kmall file
 
 import os.path
 from argparse import ArgumentParser
@@ -114,7 +118,7 @@ def kmallcleaner(filename, args):
 		else:
 			outfileptr.write(bytes)
 
-		if counter == 1000:
+		if counter == 10000:
 			break
 		continue
 
@@ -123,51 +127,70 @@ def kmallcleaner(filename, args):
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_R.txt")
 	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
+
 	# xyz[:,2] *= 10.0
-	print("Saving point cloud to %s" % (outfile)) 
-	# print("Point count to %d" % (len(xyz))) 
-	np.savetxt(outfile, (xyz), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	# print("Saving point cloud to %s" % (outfile)) 
+	# np.savetxt(outfile, (xyz), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 
 	pcd = o3d.geometry.PointCloud()
 	pcd.points = o3d.utility.Vector3dVector(xyz)
 
-	obb = pcd.get_oriented_bounding_box()
-	obb.color = (0,0,0)
+	outfilename = os.path.join(outfile + "_R.tif")
+	saveastif(outfilename, geo, pcd)
 
-	print("Statistical outlier removal")
-	voxel_down_pcd = pcd.voxel_down_sample(voxel_size=0.0002)
+	#lets clean the data to a user specified threshold using the input data quality to control the filter.  this means the machine learns about the data...
+	########
+	low = 0
+	high = 10
+	target = 1.5
+	pcd, inlier_cloud, outlier_cloud = cleanoutlier1(pcd, low, high, target)
+	########
+
+	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Inlier" + ".txt")
+	np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	outfilename = os.path.join(outfile + ".tif")
+	inlierraster = saveastif(outfilename, geo, inlier_cloud, fill=True)
+
+	#we can now revalidate the outliers and re-accept if they fit the surface
+	# outlier_cloud = validateoutliers(inlierraster, outlier_cloud)
+
+	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Outlier" + ".txt")
+	np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	outfilename = os.path.join(outfile + ".tif")
+	saveastif(outfilename, geo, outlier_cloud, fill=False)
+
+	return
+
+###############################################################################
+def validateoutliers(inlierraster, outlier_cloud):
+
+	pcd = np.asarray(outlier_cloud.points)
+	for row in pcd:
+		# py, px = inlierraster.index(row[0], row[1])
+		v = inlierraster.sample(row[0], row[1])
+
+	# py, px = inlierraster.index(row[0], row[1])
+
+	return outlier_cloud
+
+	########################v#######################################################
+	# print("Statistical outlier removal")
+	# voxel_down_pcd = pcd.voxel_down_sample(voxel_size=0.001)
+	# voxel_down_pcd = pcd
 	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=3.0) # 1.51
 	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=3.0) # 1.89
 	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=1.0) 
 	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0) # 3.54%
 	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.0) # 9.56
 
-	#outlier removal by radius
-	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
-	nb_points=3
-	radius=0.5
-	cl, ind = voxel_down_pcd.remove_radius_outlier(nb_points= nb_points, radius=radius)
-
-	inlier_cloud = voxel_down_pcd.select_by_index(ind, invert=False)
-	outlier_cloud = voxel_down_pcd.select_by_index(ind, invert=True)
-	print (inlier_cloud)
-	print (outlier_cloud)
-	print ("Percentage rejection %.2f" % (100 * (len(outlier_cloud.points) / len(xyz))))
-
-	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Radius" + str(nb_points) + "_" + str(radius) + ".txt")
-	# inlier_cloud = voxel_down_pcd.select_by_index(ind, invert=False)
-	np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-	
-	outfilename = os.path.join(outfile + ".tif")
-	saveastif(outfilename, geo, inlier_cloud)
-
-
+	# obb = pcd.get_oriented_bounding_box()
+	# obb.color = (0,0,0)
 	# display_inlier_outlier(voxel_down_pcd, ind)
 
 	# o3d.visualization.draw_geometries([pcd, obb])
 
 	# pc = open3d.io.read_point_cloud(outfile, format='xyz')
-	print (pcd)
+	# print (pcd)
 	# eps = 0.1  # DBSCAN epsilon parameter
 	# min_samples = 1  # DBSCAN minimum number of points
 	# despike_point_cloud(xyz, eps, min_samples)
@@ -220,11 +243,47 @@ def kmallcleaner(filename, args):
 
 	# plt.show()
 
-	return
 
+##################################################################################
+def cleanoutlier1(pcd, low, high, target):
+	'''clean outliers using binary chop to control how many points we reject'''
+	'''use spherical radius to identify outliers and clusters'''
+	'''binary chop will aim for target percentage of data deleted rather than a fixed filter level'''
+	'''this way the filter adapts to the data quality'''
+
+	currentfilter = (high+low)/2
+
+	#outlier removal by radius
+	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
+	# http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
+	
+	nb_points=3 # the number points inside 
+	radius=currentfilter
+	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
+	#ind: The index of the points which are NOT outliers
+	cl, ind = pcd.remove_radius_outlier(nb_points= nb_points, radius=radius)
+
+	inlier_cloud = pcd.select_by_index(ind, invert=False)
+	outlier_cloud = pcd.select_by_index(ind, invert=True)
+	print (inlier_cloud)
+	print (outlier_cloud)
+	percentage = (100 * (len(outlier_cloud.points) / len(pcd.points)))
+	print ("Percentage rejection %.2f" % (percentage))
+
+	percentage = round(percentage, 1)
+	if percentage < target:
+		#we have rejected too few, so run again setting the low to the pervious value
+		pcd, inlier_cloud, outlier_cloud = cleanoutlier1(pcd, low, currentfilter, target)
+		# percentage = cleanoutlier1(pcd, low, currentfilter, target)
+	elif percentage > target:
+		#we have rejected too few, so run again setting the low to the pervious value
+		pcd, inlier_cloud, outlier_cloud = cleanoutlier1(pcd, currentfilter, high, target)
+		# percentage = cleanoutlier1(pcd, currentfilter, high, target)
+	# else:
+	return (pcd, inlier_cloud, outlier_cloud)
 
 ###############################################################################
-def saveastif(outfilename, geo, inlier_cloud, resolution=1):
+def saveastif(outfilename, geo, inlier_cloud, resolution=1, fill=False):
 
 	pcd = np.asarray(inlier_cloud.points)
 	xmin = pcd.min(axis=0)[0]
@@ -234,7 +293,6 @@ def saveastif(outfilename, geo, inlier_cloud, resolution=1):
 	xmax = pcd.max(axis=0)[0]
 	ymax = pcd.max(axis=0)[1]
 	zmax = pcd.max(axis=0)[2]
-
 
 	xres 	= resolution
 	yres 	= resolution
@@ -260,18 +318,29 @@ def saveastif(outfilename, geo, inlier_cloud, resolution=1):
 			dtype='float32',
 			crs=geo.projection.srs,
 			transform=transform,
+			nodata=-999,
 	) 
 	# populate the numpy array with the values....
-	arr = np.zeros((height+2, width+2), dtype=float)
-	for row in pcd:
-		px = math.floor(xmax - row[0])
-		py = math.floor(ymax - row[1])
-		# py, px = src.index(row[0], row[1])
-		arr[py, width - px] = row[2]
 	
-	src.write(arr, 1)
+	arr = np.full((height+1, width+1), fill_value=-999, dtype=float)
+	
+	from numpy import ma
+	arr = ma.masked_values(arr, -999)
 
-	src.close()
+	for row in pcd:
+		# px = math.floor(xmax - row[0])
+		# py = math.floor(ymax - row[1])
+		py, px = src.index(row[0], row[1])
+		arr[py, px] = row[2]
+		
+	#we might want to fill in the gaps. useful sometimes...
+	if fill:
+		from rasterio.fill import fillnodata
+		arr = fillnodata(arr, mask=None, max_search_distance=xres*2, smoothing_iterations=0)
+
+	src.write(arr, 1)
+	# src.close()
+	return src
 
 ###############################################################################
 def clipper(datagram, clip):
