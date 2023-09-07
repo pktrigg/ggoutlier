@@ -16,10 +16,11 @@
 #create a tif file of inliers
 #create a tif file of outliers
 #optionally fill the tif file to interpolate.  we need this for the revalidation
+#rewrite rejected records to a new kmall file
 
 #todo##########################################
 #validate each outlier against the results and re-approve if it is now acceptable
-#rewrite rejected records to a new kmall file
+#scale the Z values so we accentuate the outlier noise from the horizontal noise
 
 import os.path
 from argparse import ArgumentParser
@@ -43,8 +44,7 @@ def main():
 	parser = ArgumentParser(description='Read a KMALL file.')
 	parser.add_argument('-epsg', 	action='store', 		default="0",	dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
 	parser.add_argument('-i', dest='inputFile', action='store', default="", help='Input filename.pos to process.')
-	parser.add_argument('-s', 		action='store', 		default="1",	dest='step', 			help='decimate the data to reduce the output size. [Default: 1]')
-	parser.add_argument('-c', 		action='store', 		default="45",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
+	parser.add_argument('-c', 		action='store', 		default="-1",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
 	
 	files = []
 	args = parser.parse_args()
@@ -85,6 +85,8 @@ def kmallcleaner(filename, args):
 	#load the python proj projection object library if the user has requested it
 	geo = geodetic.geodesy(args.epsg)
 	print("EPSGCode for geodetic conversions: %s" % (args.epsg))
+	
+	#get the record count so we can show a progress bar
 	recordcount, starttimestamp, enftimestamp = r.getRecordCount()
 
 	# demonstrate how to load the navigation records into a list.  this is really handy if we want to make a trackplot for coverage
@@ -94,12 +96,12 @@ def kmallcleaner(filename, args):
 		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
 		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
 		typeofdatagram, datagram = r.readDatagram()
+		counter = counter + 1
 		if typeofdatagram == '#MRZ':
 			datagram.read()
 			x, y, z, q = computebathypointcloud(datagram, geo)
 			pointcloud.add(x, y, z, q)
 			update_progress("Extracting Point Cloud", counter/recordcount)
-			counter = counter + 1
 
 		if counter == 1000:
 			break
@@ -110,16 +112,13 @@ def kmallcleaner(filename, args):
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_R.txt")
 	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
-
-	# xyz[:,2] *= 10.0
-	# print("Saving point cloud to %s" % (outfile)) 
-	# np.savetxt(outfile, (xyz), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	xyz[:,2] *= 10.0
 
 	pcd = o3d.geometry.PointCloud()
 	pcd.points = o3d.utility.Vector3dVector(xyz)
 
-	outfilename = os.path.join(outfile + "_R.tif")
-	saveastif(outfilename, geo, pcd)
+	# outfilename = os.path.join(outfile + "_R.tif")
+	# saveastif(outfilename, geo, pcd)
 
 	#lets clean the data to a user specified threshold using the input data quality to control the filter.  this means the machine learns about the data...
 	########
@@ -129,7 +128,7 @@ def kmallcleaner(filename, args):
 	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, target)
 	########
 
-	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Inlier" + ".txt")
+	# outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Inlier" + ".txt")
 	np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
 	inlierraster = saveastif(outfilename, geo, inlier_cloud, fill=True)
@@ -138,10 +137,9 @@ def kmallcleaner(filename, args):
 	# outlier_cloud = validateoutliers(inlierraster, outlier_cloud)
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Outlier" + ".txt")
-	np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	# np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
-	saveastif(outfilename, geo, outlier_cloud, fill=False)
-
+	# saveastif(outfilename, geo, outlier_cloud, fill=False)
 
 	#now lets write out a NEW KMALL file with the beams modified...
 	#create an output file....
@@ -156,6 +154,7 @@ def kmallcleaner(filename, args):
 		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
 		typeofdatagram, datagram = r.readDatagram()
 		bbytes = datagram.loadbytes() # get a hold of the bytes for the ping so we can modify them and write to a new file.
+		counter = counter + 1
 		if typeofdatagram == '#MRZ':
 			datagram.read()
 			# clip the outer beams...
@@ -165,7 +164,6 @@ def kmallcleaner(filename, args):
 			#apply the results of the cleaning process...
 			setbeamquality(datagram, beamcounter, inlierindex)
 			update_progress("Writing cleaned data", counter/recordcount)
-			counter = counter + 1
 
 			#write out the kmall datagrem with modified beam flags
 			barray=bytearray(bbytes)
@@ -182,7 +180,7 @@ def kmallcleaner(filename, args):
 		else:
 			outfileptr.write(bbytes)
 
-		if counter == 100:
+		if counter == 1000:
 			break
 		continue
 	return
@@ -192,10 +190,11 @@ def setbeamquality(datagram, beamcounter, inlierindex):
 	'''apply the cleaning results to the ping of data'''
 	test_set=set(inlierindex)
 	for idx, beam in enumerate(datagram.beams):
-		if beamcounter+idx in test_set: 
+		if not beamcounter+idx in test_set: 
+		# if not beamcounter+idx in inlierindex: 
 			beam.detectionType = 2
-		else:	
-			tmp=1
+		else:
+			pk=1
 	return
 ###############################################################################
 def validateoutliers(inlierraster, outlier_cloud):
@@ -309,11 +308,11 @@ def cleanoutlier1(pcd, low, high, target):
 	percentage = round(percentage, 1)
 	if percentage < target:
 		#we have rejected too few, so run again setting the low to the pervious value
-		cleanoutlier1(pcd, low, currentfilter, target)
+		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, currentfilter, target)
 		# percentage = cleanoutlier1(pcd, low, currentfilter, target)
 	elif percentage > target:
 		#we have rejected too few, so run again setting the low to the pervious value
-		cleanoutlier1(pcd, currentfilter, high, target)
+		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, currentfilter, high, target)
 		# percentage = cleanoutlier1(pcd, currentfilter, high, target)
 	# else:
 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
