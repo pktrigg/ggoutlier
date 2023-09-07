@@ -103,9 +103,9 @@ def kmallcleaner(filename, args):
 			pointcloud.add(x, y, z, q)
 			update_progress("Extracting Point Cloud", counter/recordcount)
 
-		if counter == 1000:
-			break
-		continue
+		# if counter == 1000:
+		# 	break
+		# continue
 
 	print("")
 	r.close()
@@ -180,9 +180,9 @@ def kmallcleaner(filename, args):
 		else:
 			outfileptr.write(bbytes)
 
-		if counter == 1000:
-			break
-		continue
+		# if counter == 1000:
+		# 	break
+		# continue
 	return
 
 ###############################################################################
@@ -300,18 +300,20 @@ def cleanoutlier1(pcd, low, high, target):
 
 	inlier_cloud = pcd.select_by_index(inlierindex, invert=False)
 	outlier_cloud = pcd.select_by_index(inlierindex, invert=True)
-	print (inlier_cloud)
-	print (outlier_cloud)
+	# print (inlier_cloud)
+	# print (outlier_cloud)
 	percentage = (100 * (len(outlier_cloud.points) / len(pcd.points)))
 	print ("Percentage rejection %.2f" % (percentage))
 
 	percentage = round(percentage, 1)
 	if percentage < target:
 		#we have rejected too few, so run again setting the low to the pervious value
+		print ("Filter level increasing to reject a few more points...")
 		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, currentfilter, target)
 		# percentage = cleanoutlier1(pcd, low, currentfilter, target)
 	elif percentage > target:
 		#we have rejected too few, so run again setting the low to the pervious value
+		print ("Filter level decreasing to reject a few less points...")
 		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, currentfilter, high, target)
 		# percentage = cleanoutlier1(pcd, currentfilter, high, target)
 	# else:
