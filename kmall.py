@@ -768,7 +768,17 @@ class cBeam:
 			self.soundingIndex 				= decodestructure[0]	#1 3
 			self.txSectorNumb 				= decodestructure[1]	#1 4
 			# Detection info.
+			# Bottom detection type. Normal bottom detection, extra detection, or rejected.
+			# 0 = normal detection
+			# 1 = extra detection
+			# 2 = rejected detection
+			# In case 2, the estimated range has been used to fill in amplitude samples in the seabed image datagram.
 			self.detectionType 				= decodestructure[2]	#1 5
+			# Method for determining bottom detection, e.g. amplitude or phase.
+			# 0 = no valid detection
+			# 1 = amplitude detection
+			# 2 = phase detection
+			# 3-15 for future use.
 			self.detectionMethod 			= decodestructure[3]	#1 6
 			self.rejectionInfo1 			= decodestructure[4]	#1 7
 			self.rejectionInfo2 			= decodestructure[5]	#1 8
@@ -1231,9 +1241,11 @@ class RANGEDEPTH:
 		rec_unpack = struct.Struct(rec_fmt).unpack
 
 		beams = []
+
 		timestamp = to_timestamp(self.date)
 		for i in range(self.numSoundingsMaxMain):
 			beambyteoffset = self.fileptr.tell() - self.offset	# remember where this packet resides in the DATAGRAM BYTES so we can modify if needed
+			# beambyteoffset = (i * rec_len)	# remember where this packet resides in the DATAGRAM BYTES so we can modify if needed
 			s = rec_unpack(self.fileptr.read(rec_len))
 			beam = cBeam(timestamp, s, beambyteoffset)
 			beams.append(beam)

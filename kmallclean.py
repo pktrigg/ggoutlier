@@ -71,13 +71,10 @@ def kmallcleaner(filename, args):
 	
 	counter = 0
 	clip = float(args.clip)
+	beamcounter = 0
 
 	print("Loading Point Cloud...")
 	pointcloud = kmall.Cpointcloud()
-
-	#create an output file....
-	outfilename = fileutils.addFileNameAppendage(filename, "_CLEANED")
-	outfileptr = open(outfilename, 'wb')
 
 	r = kmall.kmallreader(filename)
 
@@ -97,28 +94,14 @@ def kmallcleaner(filename, args):
 		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
 		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
 		typeofdatagram, datagram = r.readDatagram()
-		bytes = datagram.loadbytes() # get a hold of the bytes for the ping so we can modify them and write to a new file.
 		if typeofdatagram == '#MRZ':
 			datagram.read()
-			# clip the outer beams...
-			if clip > 0:
-				clipper(datagram, clip)
-
 			x, y, z, q = computebathypointcloud(datagram, geo)
-			pointcloud.add(x, y, z, q) # pkpkpk
+			pointcloud.add(x, y, z, q)
 			update_progress("Extracting Point Cloud", counter/recordcount)
 			counter = counter + 1
 
-			#write out the kmall datagrem with modified beam flags
-			# for beam in datagram.beams:
-			# 	#beam flag offset is 7 bytes into the beam structure so we can now set that flag to whatever we want it to be
-			# 	bytes [beam.beambyteoffset +7] = 1
-			# 	# now write out the modified byte array
-			# 	outfileptr.write(bytes)
-		else:
-			outfileptr.write(bytes)
-
-		if counter == 10000:
+		if counter == 1000:
 			break
 		continue
 
@@ -143,7 +126,7 @@ def kmallcleaner(filename, args):
 	low = 0
 	high = 10
 	target = 1.5
-	pcd, inlier_cloud, outlier_cloud = cleanoutlier1(pcd, low, high, target)
+	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, target)
 	########
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Inlier" + ".txt")
@@ -159,8 +142,61 @@ def kmallcleaner(filename, args):
 	outfilename = os.path.join(outfile + ".tif")
 	saveastif(outfilename, geo, outlier_cloud, fill=False)
 
+
+	#now lets write out a NEW KMALL file with the beams modified...
+	#create an output file....
+	outfilename = fileutils.addFileNameAppendage(filename, "_CLEANED")
+	outfileptr = open(outfilename, 'wb')
+
+	print("Writing NEW KMALL file %s" % (outfilename))
+	counter = 0
+	r = kmall.kmallreader(filename)
+	while r.moreData():
+		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
+		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
+		typeofdatagram, datagram = r.readDatagram()
+		bbytes = datagram.loadbytes() # get a hold of the bytes for the ping so we can modify them and write to a new file.
+		if typeofdatagram == '#MRZ':
+			datagram.read()
+			# clip the outer beams...
+			if clip > 0:
+				clipper(datagram, clip)
+
+			#apply the results of the cleaning process...
+			setbeamquality(datagram, beamcounter, inlierindex)
+			update_progress("Writing cleaned data", counter/recordcount)
+			counter = counter + 1
+
+			#write out the kmall datagrem with modified beam flags
+			barray=bytearray(bbytes)
+			for beam in datagram.beams:
+				# beam flag offset is 3 bytes into the beam structure so we can now set that flag to whatever we want it to be
+				barray [beam.beambyteoffset + 3] = beam.detectionType
+				# barray [beam.beambyteoffset + 5] = beam.detectionType
+				# barray [beam.beambyteoffset + 7] = beam.detectionType
+				# barray [beam.beambyteoffset + 8] = beam.detectionType
+				beamcounter += 1
+			# now write out the modified byte array
+			outfileptr.write(bytes(barray))
+
+		else:
+			outfileptr.write(bbytes)
+
+		if counter == 100:
+			break
+		continue
 	return
 
+###############################################################################
+def setbeamquality(datagram, beamcounter, inlierindex):
+	'''apply the cleaning results to the ping of data'''
+	test_set=set(inlierindex)
+	for idx, beam in enumerate(datagram.beams):
+		if beamcounter+idx in test_set: 
+			beam.detectionType = 2
+		else:	
+			tmp=1
+	return
 ###############################################################################
 def validateoutliers(inlierraster, outlier_cloud):
 
@@ -261,10 +297,10 @@ def cleanoutlier1(pcd, low, high, target):
 	radius=currentfilter
 	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
 	#ind: The index of the points which are NOT outliers
-	cl, ind = pcd.remove_radius_outlier(nb_points= nb_points, radius=radius)
+	cl, inlierindex = pcd.remove_radius_outlier(nb_points= nb_points, radius=radius)
 
-	inlier_cloud = pcd.select_by_index(ind, invert=False)
-	outlier_cloud = pcd.select_by_index(ind, invert=True)
+	inlier_cloud = pcd.select_by_index(inlierindex, invert=False)
+	outlier_cloud = pcd.select_by_index(inlierindex, invert=True)
 	print (inlier_cloud)
 	print (outlier_cloud)
 	percentage = (100 * (len(outlier_cloud.points) / len(pcd.points)))
@@ -273,19 +309,23 @@ def cleanoutlier1(pcd, low, high, target):
 	percentage = round(percentage, 1)
 	if percentage < target:
 		#we have rejected too few, so run again setting the low to the pervious value
-		pcd, inlier_cloud, outlier_cloud = cleanoutlier1(pcd, low, currentfilter, target)
+		cleanoutlier1(pcd, low, currentfilter, target)
 		# percentage = cleanoutlier1(pcd, low, currentfilter, target)
 	elif percentage > target:
 		#we have rejected too few, so run again setting the low to the pervious value
-		pcd, inlier_cloud, outlier_cloud = cleanoutlier1(pcd, currentfilter, high, target)
+		cleanoutlier1(pcd, currentfilter, high, target)
 		# percentage = cleanoutlier1(pcd, currentfilter, high, target)
 	# else:
-	return (pcd, inlier_cloud, outlier_cloud)
+	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
 ###############################################################################
-def saveastif(outfilename, geo, inlier_cloud, resolution=1, fill=False):
+def saveastif(outfilename, geo, cloud, resolution=1, fill=False):
 
-	pcd = np.asarray(inlier_cloud.points)
+	if len(cloud.points)==0:	
+		return
+		
+	NODATA = -999
+	pcd = np.asarray(cloud.points)
 	xmin = pcd.min(axis=0)[0]
 	ymin = pcd.min(axis=0)[1]
 	zmin = pcd.min(axis=0)[2]
@@ -300,10 +340,8 @@ def saveastif(outfilename, geo, inlier_cloud, resolution=1, fill=False):
 	height 	= math.ceil((ymax - ymin) / resolution)
 
 	transform = Affine.translation(xmin - xres / 2, ymin - yres / 2) * Affine.scale(xres, yres)
-	#gt = (X_topleft, X_resolution, 0, Y_topleft, 0, Y_resolution)
-	# transform = Affine.translation(xmin, ymax)
-	# transform = rasterio.Affine(xmin, xres, 0, ymax, 0, -yres)
 	
+	print("Creating tif file... %s" % (outfilename))
 	from rasterio.transform import from_origin
 	transform = from_origin(xmin, ymax, xres, yres)
 
@@ -318,19 +356,18 @@ def saveastif(outfilename, geo, inlier_cloud, resolution=1, fill=False):
 			dtype='float32',
 			crs=geo.projection.srs,
 			transform=transform,
-			nodata=-999,
+			nodata=NODATA,
 	) 
 	# populate the numpy array with the values....
-	
-	arr = np.full((height+1, width+1), fill_value=-999, dtype=float)
+	arr = np.full((height+1, width+1), fill_value=NODATA, dtype=float)
 	
 	from numpy import ma
-	arr = ma.masked_values(arr, -999)
+	arr = ma.masked_values(arr, NODATA)
 
 	for row in pcd:
-		# px = math.floor(xmax - row[0])
-		# py = math.floor(ymax - row[1])
-		py, px = src.index(row[0], row[1])
+		px = math.floor((xmax - row[0]) / xres)
+		py = math.floor((ymax - row[1]) / yres)
+		# py, px = src.index(row[0], row[1])
 		arr[py, px] = row[2]
 		
 	#we might want to fill in the gaps. useful sometimes...
@@ -339,8 +376,8 @@ def saveastif(outfilename, geo, inlier_cloud, resolution=1, fill=False):
 		arr = fillnodata(arr, mask=None, max_search_distance=xres*2, smoothing_iterations=0)
 
 	src.write(arr, 1)
-	# src.close()
-	return src
+	src.close()
+	# return src
 
 ###############################################################################
 def clipper(datagram, clip):
@@ -349,7 +386,8 @@ def clipper(datagram, clip):
 	for beam in datagram.beams:
 		if abs(beam.beamAngleReRx_deg) > clip:
 			beam.detectionType = 2 # reject the beam
-			# beam.rejectionInfo1 = 
+			beam.detectionType = 0 # no valid detect
+			# beam.rejectionInfo1 = ??
 
 ###############################################################################
 def display_inlier_outlier(cloud, ind):
