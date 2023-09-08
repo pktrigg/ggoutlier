@@ -33,36 +33,56 @@ import time
 import glob
 import rasterio
 from rasterio.transform import Affine
+import multiprocessing as mp
 
 import kmall
 import fileutils
 import geodetic
+import multiprocesshelper
 
 ###########################################################################
 def main():
 
 	parser = ArgumentParser(description='Read a KMALL file.')
 	parser.add_argument('-epsg', 	action='store', 		default="0",	dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
-	parser.add_argument('-i', dest='inputFile', action='store', default="", help='Input filename.pos to process.')
+	parser.add_argument('-i', dest='inputfile', action='store', default="", help='Input filename/folder to process.')
 	parser.add_argument('-c', 		action='store', 		default="-1",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
+	parser.add_argument('-cpu', 		dest='cpu', 			action='store', 		default='0', 	help='number of cpu processes to use in parallel. [Default: 0, all cpu]')
 	
-	files = []
+	matches = []
 	args = parser.parse_args()
-	# args.inputFile = "/Users/paulkennedy/Documents/development/sampledata/0822_20210330_091839.kmall"
-	args.inputFile = "c:/sampledata/EM304_0002_20220406_122446.kmall"
-	# args.inputFile = "c:/sampledata/EM2040_0822_20210330_091839.kmall"
-	args.inputFile = "c:/sampledata/0494_20210530_165628.kmall"
-	args.inputFile = "C:/sampledata/kmall/B_S2980_3005_20220220_084910.kmall"
-	if len (args.inputFile) == 0:
+	# args.inputfile = "/Users/paulkennedy/Documents/development/sampledata/0822_20210330_091839.kmall"
+	# args.inputfile = "c:/sampledata/EM304_0002_20220406_122446.kmall"
+	# args.inputfile = "c:/sampledata/EM2040_0822_20210330_091839.kmall"
+	# args.inputfile = "c:/sampledata/0494_20210530_165628.kmall"
+	# args.inputfile = "C:/sampledata/kmall/B_S2980_3005_20220220_084910.kmall"
+
+	if len (args.inputfile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
 		inputfolder = os.getcwd()
-		files = findFiles2(False, inputfolder, "*.kmall")
+		matches = findFiles2(False, inputfolder, "*.kmall")
 	else:
-		files.append(args.inputFile)
+		matches.append(args.inputfile)
 
-	for file in files:
-		print ("processing file: %s" % (file))
-		kmallcleaner(file, args)
+	if os.path.isdir(args.inputfile):
+		matches = fileutils.findFiles2(True, args.inputfile, "*.kmall")
+
+	# boundarytasks = []
+	results = []
+	if args.cpu == '1':
+		for file in matches:
+			kmallcleaner(file, args)
+	else:
+		multiprocesshelper.log("Files to Import: %d" %(len(matches)))		
+		cpu = multiprocesshelper.getcpucount(args.cpu)
+		pool = mp.Pool(cpu)
+		multiprocesshelper.g_procprogress.setmaximum(len(matches))
+		poolresults = [pool.apply_async(kmallcleaner, (file, args), callback=multiprocesshelper.mpresult) for file in matches]
+		pool.close()
+		pool.join()
+		for idx, result in enumerate (poolresults):
+			results.append([file, result._value])
+			print (result._value)
 
 ############################################################
 def kmallcleaner(filename, args):
@@ -72,7 +92,8 @@ def kmallcleaner(filename, args):
 	counter = 0
 	clip = float(args.clip)
 	beamcounter = 0
-
+	ZSCALE = 10 # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
+	
 	print("Loading Point Cloud...")
 	pointcloud = kmall.Cpointcloud()
 
@@ -112,13 +133,14 @@ def kmallcleaner(filename, args):
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_R.txt")
 	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
-	xyz[:,2] *= 10.0
-
+	xyz[:,2] *= ZSCALE
+	
 	pcd = o3d.geometry.PointCloud()
 	pcd.points = o3d.utility.Vector3dVector(xyz)
+	print("Depths Loaded for cleaning: %d" % (len(pcd.points)))
 
-	# outfilename = os.path.join(outfile + "_R.tif")
-	# saveastif(outfilename, geo, pcd)
+	outfilename = os.path.join(outfile + "_R.tif")
+	saveastif(outfilename, geo, pcd, ZSCALE=ZSCALE, fill=False)
 
 	#lets clean the data to a user specified threshold using the input data quality to control the filter.  this means the machine learns about the data...
 	########
@@ -128,18 +150,18 @@ def kmallcleaner(filename, args):
 	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, target)
 	########
 
-	# outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Inlier" + ".txt")
+	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Inlier" + ".txt")
 	np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
-	inlierraster = saveastif(outfilename, geo, inlier_cloud, fill=True)
+	inlierraster = saveastif(outfilename, geo, inlier_cloud, ZSCALE=ZSCALE, fill=True)
 
 	#we can now revalidate the outliers and re-accept if they fit the surface
 	# outlier_cloud = validateoutliers(inlierraster, outlier_cloud)
 
 	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Outlier" + ".txt")
-	# np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
-	# saveastif(outfilename, geo, outlier_cloud, fill=False)
+	saveastif(outfilename, geo, outlier_cloud, ZSCALE=ZSCALE, fill=False)
 
 	#now lets write out a NEW KMALL file with the beams modified...
 	#create an output file....
@@ -320,7 +342,7 @@ def cleanoutlier1(pcd, low, high, target):
 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
 ###############################################################################
-def saveastif(outfilename, geo, cloud, resolution=1, fill=False):
+def saveastif(outfilename, geo, cloud, resolution=1, ZSCALE=1, fill=False):
 
 	if len(cloud.points)==0:	
 		return
@@ -369,7 +391,7 @@ def saveastif(outfilename, geo, cloud, resolution=1, fill=False):
 		px = math.floor((xmax - row[0]) / xres)
 		py = math.floor((ymax - row[1]) / yres)
 		# py, px = src.index(row[0], row[1])
-		arr[py, px] = row[2]
+		arr[py, px] = row[2] / ZSCALE
 		
 	#we might want to fill in the gaps. useful sometimes...
 	if fill:
