@@ -21,6 +21,8 @@
 #todo##########################################
 #validate each outlier against the results and re-approve if it is now acceptable
 #scale the Z values so we accentuate the outlier noise from the horizontal noise
+#write outliers to a shape file point cloud so we can visualise them easily in GIS
+#profile to improve performance
 
 import os.path
 from argparse import ArgumentParser
@@ -48,6 +50,7 @@ def main():
 	parser.add_argument('-i', dest='inputfile', action='store', default="", help='Input filename/folder to process.')
 	parser.add_argument('-c', 		action='store', 		default="-1",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
 	parser.add_argument('-cpu', 		dest='cpu', 			action='store', 		default='0', 	help='number of cpu processes to use in parallel. [Default: 0, all cpu]')
+	parser.add_argument('-odir', 	action='store', 		default="50x",	dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	
 	matches = []
 	args = parser.parse_args()
@@ -57,15 +60,22 @@ def main():
 	# args.inputfile = "c:/sampledata/0494_20210530_165628.kmall"
 	# args.inputfile = "C:/sampledata/kmall/B_S2980_3005_20220220_084910.kmall"
 
+	if os.path.isfile(args.inputfile):
+		matches.append(args.inputfile)
+
 	if len (args.inputfile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
 		inputfolder = os.getcwd()
 		matches = findFiles2(False, inputfolder, "*.kmall")
-	else:
-		matches.append(args.inputfile)
 
 	if os.path.isdir(args.inputfile):
-		matches = fileutils.findFiles2(True, args.inputfile, "*.kmall")
+		matches = fileutils.findFiles2(False, args.inputfile, "*.kmall")
+
+	#make an output folder
+	if (len(matches) > 0):
+		odir = os.path.join(os.path.dirname(matches[0]), args.odir)
+		print("Output Folder: %s" % (odir))
+		makedirs(odir)
 
 	# boundarytasks = []
 	results = []
@@ -80,9 +90,9 @@ def main():
 		poolresults = [pool.apply_async(kmallcleaner, (file, args), callback=multiprocesshelper.mpresult) for file in matches]
 		pool.close()
 		pool.join()
-		for idx, result in enumerate (poolresults):
-			results.append([file, result._value])
-			print (result._value)
+		# for idx, result in enumerate (poolresults):
+		# 	results.append([file, result._value])
+		# 	print (result._value)
 
 ############################################################
 def kmallcleaner(filename, args):
@@ -92,7 +102,7 @@ def kmallcleaner(filename, args):
 	counter = 0
 	clip = float(args.clip)
 	beamcounter = 0
-	ZSCALE = 10 # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
+	ZSCALE = 50 # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
 	
 	print("Loading Point Cloud...")
 	pointcloud = kmall.Cpointcloud()
@@ -131,7 +141,7 @@ def kmallcleaner(filename, args):
 	print("")
 	r.close()
 
-	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_R.txt")
+	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_R.txt")
 	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
 	xyz[:,2] *= ZSCALE
 	
@@ -150,7 +160,7 @@ def kmallcleaner(filename, args):
 	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, target)
 	########
 
-	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Inlier" + ".txt")
+	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Inlier" + ".txt")
 	np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
 	inlierraster = saveastif(outfilename, geo, inlier_cloud, ZSCALE=ZSCALE, fill=True)
@@ -158,14 +168,15 @@ def kmallcleaner(filename, args):
 	#we can now revalidate the outliers and re-accept if they fit the surface
 	# outlier_cloud = validateoutliers(inlierraster, outlier_cloud)
 
-	outfile = os.path.join(os.path.dirname(filename), os.path.basename(filename) + "_C_Outlier" + ".txt")
+	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Outlier" + ".txt")
 	np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
 	saveastif(outfilename, geo, outlier_cloud, ZSCALE=ZSCALE, fill=False)
 
 	#now lets write out a NEW KMALL file with the beams modified...
 	#create an output file....
-	outfilename = fileutils.addFileNameAppendage(filename, "_CLEANED")
+	outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename))
+	outfilename = fileutils.addFileNameAppendage(outfilename, "_CLEANED")
 	outfileptr = open(outfilename, 'wb')
 
 	print("Writing NEW KMALL file %s" % (outfilename))
@@ -494,6 +505,11 @@ def update_progress(job_title, progress):
 	if progress >= 1: msg += " DONE\r\n"
 	sys.stdout.write(msg)
 	sys.stdout.flush()
+
+###############################################################################
+def	makedirs(odir):
+	if not os.path.isdir(odir):
+		os.makedirs(odir, exist_ok=True)
 
 ###############################################################################
 if __name__ == "__main__":
