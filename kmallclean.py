@@ -38,6 +38,7 @@ import glob
 import rasterio
 from rasterio.transform import Affine
 import multiprocessing as mp
+import pyshp
 
 import kmall
 import fileutils
