@@ -19,6 +19,8 @@
 #rewrite rejected records to a new kmall file
 
 #todo##########################################
+#test with 10X vertical
+#test with 50x vertical
 #validate each outlier against the results and re-approve if it is now acceptable
 #scale the Z values so we accentuate the outlier noise from the horizontal noise
 
