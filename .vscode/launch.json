@@ -10,7 +10,7 @@
 			// "program": "survey2mcap.py",
 			//"python": "c:/python/python.exe",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-epsg", "0", "-i", "C:/sampledata/SI1026_A/Special_Order_Selection/SpecialOrder", "-cpu", "0"]
+			"args": ["-epsg", "0", "-i", "C:/sampledata/kmall", "-cpu", "1", "-odir", "10x_N5", "-n", "5", "-debug", "1000", "-p", "1", "-z", "10"]
 		}
 	]
 }

@@ -206,7 +206,7 @@ def computebathypointcloud(datagram, geo):
 		beam.east, beam.north = geo.convertToGrid((beam.deltaLongitude_deg + datagram.longitude), (beam.deltaLatitude_deg + datagram.latitude))
 		beam.depth = beam.z_reRefPoint_m - datagram.txTransducerDepth_m
 		# beam.depth = beam.z_reRefPoint_m - datagram.z_waterLevelReRefPoint_m
-		
+		beam.id 	= datagram.ping
 	npeast = np.fromiter((beam.east for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npnorth = np.fromiter((beam.north for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npdepth = np.fromiter((beam.depth for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
@@ -252,14 +252,16 @@ class Cpointcloud:
 	yarr = []
 	zarr = []
 	qarr = []
+	idarr = []
 
 	###############################################################################
-	def __init__(self, npx=None, npy=None, npz=None, npq=None):
+	def __init__(self, npx=None, npy=None, npz=None, npq=None, npid=None):
 		'''add the new ping of data to the existing array '''
 		np.append(self.xarr, np.array(npx))
 		np.append(self.yarr, np.array(npy))
 		np.append(self.zarr, np.array(npz))
 		np.append(self.qarr, np.array(npq))
+		np.append(self.idarr, np.array(npid))
 
 	###############################################################################
 	def add(self, npx, npy, npz, npq):
@@ -272,6 +274,7 @@ class Cpointcloud:
 		self.yarr.extend(npy)
 		self.zarr.extend(npz)
 		self.qarr.extend(npq)
+		# self.idarr.extend(npid)
 
 ###############################################################################
 class kmallreader:
@@ -825,6 +828,7 @@ class cBeam:
 			self.east							= 0
 			self.north							= 0
 			self.depth 							= 0
+			self.id 							= 0
 ###############################################################################
 class ATTITUDE:
 	def __init__(self, fileptr, numberofbytes):
@@ -1062,7 +1066,7 @@ class RANGEDEPTH:
 		self.numOfDgms 				= s[0]
 		self.dgmNum 				= s[1]
 
-		EMdgmMbody_def				= "=2h8B"
+		EMdgmMbody_def				= "=2H8B"
 		rec_fmt = EMdgmMbody_def
 		rec_len = struct.calcsize(rec_fmt)
 		rec_unpack = struct.Struct(rec_fmt).unpack

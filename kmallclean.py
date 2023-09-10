@@ -17,6 +17,9 @@
 #create a tif file of outliers
 #optionally fill the tif file to interpolate.  we need this for the revalidation
 #rewrite rejected records to a new kmall file
+#added percentage to args
+#added numpoints to args
+#added debug to args
 
 #todo##########################################
 #test with 10X vertical
@@ -38,7 +41,7 @@ import glob
 import rasterio
 from rasterio.transform import Affine
 import multiprocessing as mp
-import pyshp
+import shapefile
 
 import kmall
 import fileutils
@@ -50,10 +53,14 @@ def main():
 
 	parser = ArgumentParser(description='Read a KMALL file.')
 	parser.add_argument('-epsg', 	action='store', 		default="0",	dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
-	parser.add_argument('-i', dest='inputfile', action='store', default="", help='Input filename/folder to process.')
+	parser.add_argument('-i', 		action='store',			default="", 	dest='inputfile', 		help='Input filename/folder to process.')
 	parser.add_argument('-c', 		action='store', 		default="-1",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
-	parser.add_argument('-cpu', 		dest='cpu', 			action='store', 		default='0', 	help='number of cpu processes to use in parallel. [Default: 0, all cpu]')
+	parser.add_argument('-cpu', 	action='store', 		default='0', 	dest='cpu', 			help='number of cpu processes to use in parallel. [Default: 0, all cpu]')
 	parser.add_argument('-odir', 	action='store', 		default="50x",	dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
+	parser.add_argument('-n', 		action='store', 		default="3",	dest='numpoints', 		help='Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:5]')
+	parser.add_argument('-p', 		action='store', 		default="1.0",	dest='outlierpercentage',help='Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. [Default:1.0]')
+	parser.add_argument('-z', 		action='store', 		default="10",	dest='zscale',			help='Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Thik of this as how you exxagerate teh vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
+	parser.add_argument('-debug', 	action='store', 		default="-1",	dest='debug', 			help='Specify the number of pings to process.  good only for debugging. [Default:-1]')
 	
 	matches = []
 	args = parser.parse_args()
@@ -102,10 +109,14 @@ def kmallcleaner(filename, args):
 	'''we will try to auto clean beams by extracting the beam xyzF flag data and attempt to clean in scipy'''
 	'''we then set the beam flags to reject files we think are outliers and write the kmall file to a new file'''
 	
-	counter = 0
+	maxpings = int(args.debug)
+	if maxpings == -1:
+		maxpings = 999999999
+
+	pingcounter = 0
 	clip = float(args.clip)
-	beamcounter = 0
-	ZSCALE = 50 # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
+	beamcountarray = 0
+	ZSCALE = float(args.zscale) # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
 	
 	print("Loading Point Cloud...")
 	pointcloud = kmall.Cpointcloud()
@@ -130,15 +141,15 @@ def kmallcleaner(filename, args):
 		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
 		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
 		typeofdatagram, datagram = r.readDatagram()
-		counter = counter + 1
 		if typeofdatagram == '#MRZ':
 			datagram.read()
 			x, y, z, q = computebathypointcloud(datagram, geo)
 			pointcloud.add(x, y, z, q)
-			update_progress("Extracting Point Cloud", counter/recordcount)
+			update_progress("Extracting Point Cloud", pingcounter/recordcount)
+			pingcounter = pingcounter + 1
 
-		# if counter == 1000:
-		# 	break
+		if pingcounter == maxpings:
+			break
 		# continue
 
 	print("")
@@ -152,6 +163,17 @@ def kmallcleaner(filename, args):
 	pcd.points = o3d.utility.Vector3dVector(xyz)
 	print("Depths Loaded for cleaning: %d" % (len(pcd.points)))
 
+	# dt = np.dtype([('counter', np.int32), ('boolean', bool)])
+	# dt = np.dtype(('counter', np.int32))
+
+	# Create an empty structured array with 3 elements
+	# data = np.empty(len(pcd.points), dtype=dt)
+
+	# Populate the 'counter' field automatically
+	beamcountarray = np.arange(0, len(pcd.points))  # This will populate 'counter' with values 1, 2, 3
+	# data['boolean'] = np.zeros(len(pcd.points))
+
+	# Print the structured array
 	outfilename = os.path.join(outfile + "_R.tif")
 	saveastif(outfilename, geo, pcd, ZSCALE=ZSCALE, fill=False)
 
@@ -159,12 +181,18 @@ def kmallcleaner(filename, args):
 	########
 	low = 0
 	high = 10
-	target = 1.5
-	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, target)
+	TARGET = float(args.outlierpercentage)
+	NUMPOINTS = int(args.numpoints)
+	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, TARGET, NUMPOINTS)
+	print ("Points accepted: %.2f" % (len(inlier_cloud.points)))
+	print ("Points rejected: %.2f" % (len(outlier_cloud.points)))
 	########
 
+	#we need 1 list of ALL beams which are either accepted or rejected.
+	beamqualityresult = np.isin(beamcountarray, inlierindex)
+
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Inlier" + ".txt")
-	np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	# np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
 	inlierraster = saveastif(outfilename, geo, inlier_cloud, ZSCALE=ZSCALE, fill=True)
 
@@ -173,8 +201,19 @@ def kmallcleaner(filename, args):
 
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Outlier" + ".txt")
 	np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-	outfilename = os.path.join(outfile + ".tif")
-	saveastif(outfilename, geo, outlier_cloud, ZSCALE=ZSCALE, fill=False)
+	# outfilename = os.path.join(outfile + ".tif")
+	# saveastif(outfilename, geo, outlier_cloud, ZSCALE=ZSCALE, fill=False)
+
+	#write the outliers to a point SHAPE file
+	outfilename = os.path.join(outfile + ".shp")
+	w = shapefile.Writer(outfilename)
+
+	# for point in outlier_cloud.poin:
+	w.multipoint(np.asarray(outlier_cloud.points).tolist())
+	w.field('name', 'C')
+	w.record('multipoint1')
+
+	w.close()
 
 	#now lets write out a NEW KMALL file with the beams modified...
 	#create an output file....
@@ -183,27 +222,30 @@ def kmallcleaner(filename, args):
 	outfileptr = open(outfilename, 'wb')
 
 	print("Writing NEW KMALL file %s" % (outfilename))
-	counter = 0
+	pingcounter = 0
+	beamcounter = 0
 	r = kmall.kmallreader(filename)
 	while r.moreData():
 		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
 		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
 		typeofdatagram, datagram = r.readDatagram()
 		bbytes = datagram.loadbytes() # get a hold of the bytes for the ping so we can modify them and write to a new file.
-		counter = counter + 1
 		if typeofdatagram == '#MRZ':
 			datagram.read()
 			# clip the outer beams...
 			if clip > 0:
 				clipper(datagram, clip)
 
-			#apply the results of the cleaning process...
-			setbeamquality(datagram, beamcounter, inlierindex)
-			update_progress("Writing cleaned data", counter/recordcount)
+			# setbeamquality(datagram, beamcounter, inlierindex)
+			update_progress("Writing cleaned data", pingcounter/recordcount)
+			pingcounter = pingcounter + 1
 
 			#write out the kmall datagrem with modified beam flags
 			barray=bytearray(bbytes)
 			for beam in datagram.beams:
+				#apply the results of the cleaning process...
+				if not beamqualityresult[beamcounter]:
+					beam.detectionType = 2
 				# beam flag offset is 3 bytes into the beam structure so we can now set that flag to whatever we want it to be
 				barray [beam.beambyteoffset + 3] = beam.detectionType
 				# barray [beam.beambyteoffset + 5] = beam.detectionType
@@ -216,8 +258,8 @@ def kmallcleaner(filename, args):
 		else:
 			outfileptr.write(bbytes)
 
-		# if counter == 1000:
-		# 	break
+		if pingcounter == maxpings:
+			break
 		# continue
 	return
 
@@ -316,11 +358,15 @@ def validateoutliers(inlierraster, outlier_cloud):
 
 
 ##################################################################################
-def cleanoutlier1(pcd, low, high, target):
+def cleanoutlier1(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	'''clean outliers using binary chop to control how many points we reject'''
 	'''use spherical radius to identify outliers and clusters'''
 	'''binary chop will aim for target percentage of data deleted rather than a fixed filter level'''
 	'''this way the filter adapts to the data quality'''
+	'''TARGET is the percentage of the input points we are looking to reject'''
+	'''NUMPOINTS is the number of nearest neighbours within the spherical radius which is the threshold we use to consider a point an outlier.'''
+	'''If a point has no friends, then he is an outlier'''
+	'''if a point has moew the NUMPOINTS in the spherical radius then he is an inlier, ie good'''
 
 	currentfilter = (high+low)/2
 
@@ -328,7 +374,7 @@ def cleanoutlier1(pcd, low, high, target):
 	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
 	# http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
 	
-	nb_points=3 # the number points inside 
+	nb_points=NUMPOINTS # the number points inside 
 	radius=currentfilter
 	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
 	#ind: The index of the points which are NOT outliers
@@ -342,16 +388,16 @@ def cleanoutlier1(pcd, low, high, target):
 	print ("Percentage rejection %.2f" % (percentage))
 
 	percentage = round(percentage, 1)
-	if percentage < target:
+	if percentage < TARGET:
 		#we have rejected too few, so run again setting the low to the pervious value
 		print ("Filter level increasing to reject a few more points...")
-		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, currentfilter, target)
-		# percentage = cleanoutlier1(pcd, low, currentfilter, target)
-	elif percentage > target:
+		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, currentfilter, TARGET, NUMPOINTS)
+		# percentage = cleanoutlier1(pcd, low, currentfilter, target, NUMPOINTS)
+	elif percentage > TARGET:
 		#we have rejected too few, so run again setting the low to the pervious value
 		print ("Filter level decreasing to reject a few less points...")
-		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, currentfilter, high, target)
-		# percentage = cleanoutlier1(pcd, currentfilter, high, target)
+		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, currentfilter, high, TARGET, NUMPOINTS)
+		# percentage = cleanoutlier1(pcd, currentfilter, high, target, NUMPOINTS)
 	# else:
 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
@@ -402,9 +448,9 @@ def saveastif(outfilename, geo, cloud, resolution=1, ZSCALE=1, fill=False):
 	arr = ma.masked_values(arr, NODATA)
 
 	for row in pcd:
-		px = math.floor((xmax - row[0]) / xres)
-		py = math.floor((ymax - row[1]) / yres)
-		# py, px = src.index(row[0], row[1])
+		# px = math.floor((xmax - row[0]) / xres)
+		# py = math.floor((ymax - row[1]) / yres)
+		py, px = src.index(row[0], row[1])
 		arr[py, px] = row[2] / ZSCALE
 		
 	#we might want to fill in the gaps. useful sometimes...
@@ -458,11 +504,13 @@ def computebathypointcloud(datagram, geo):
 		beam.east, beam.north = geo.convertToGrid((beam.deltaLongitude_deg + datagram.longitude), (beam.deltaLatitude_deg + datagram.latitude))
 		beam.depth = beam.z_reRefPoint_m + datagram.txTransducerDepth_m
 		# beam.depth = beam.z_reRefPoint_m - datagram.z_waterLevelReRefPoint_m
-		
+		# beam.id			= datagram.pingCnt
+
 	npeast = np.fromiter((beam.east for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npnorth = np.fromiter((beam.north for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npdepth = np.fromiter((beam.depth for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 	npq = np.fromiter((beam.rejectionInfo1 for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
+	# npid = np.fromiter((beam.id for beam in datagram.beams), float, count=len(datagram.beams)) #. Also, adding count=len(stars)
 
 	# we can now comput absolute positions from the relative positions
 	# npLatitude_deg = npdeltaLatitude_deg + datagram.latitude_deg	
