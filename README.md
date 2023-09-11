@@ -64,7 +64,7 @@ Percentage rejection 1.46
 Filter level decreasing to reject a few less points...
 Percentage rejection 0.95
 Points accepted: 1244474.00
-Points rejected: 11974.00
+Points rejected: 11974.00  
 Creating tif file... C:/sampledata/SI1026_A/Special_Order_Selection/SpecialOrder\Z50_N5_P1\A_Infill_001_0509_20221009_024512.kmall_Inlier.txt.tif
 Writing NEW KMALL file C:/sampledata/SI1026_A/Special_Order_Selection/SpecialOrder\Z50_N5_P1\A_Infill_003_0504_20221009_023541_CLEANED.kmall
 Writing cleaned data: [####################] 99.91%
