@@ -136,7 +136,7 @@ def kmallcleaner(filename, args):
 	print("EPSGCode for geodetic conversions: %s" % (args.epsg))
 	
 	#get the record count so we can show a progress bar
-	recordcount, starttimestamp, enftimestamp = r.getRecordCount()
+	recordcount, starttimestamp, enftimestamp = r.getRecordCount("MRZ")
 
 	# demonstrate how to load the navigation records into a list.  this is really handy if we want to make a trackplot for coverage
 	start_time = time.time() # time the process
@@ -179,7 +179,8 @@ def kmallcleaner(filename, args):
 	# Print the structured array
 	outfilename = os.path.join(outfile + "_R.tif")
 	raw = np.asarray(pcd.points)
-	saveastif(outfilename, geo, raw, ZSCALE=ZSCALE, fill=False)
+	raw[:,2] /= ZSCALE
+	saveastif(outfilename, geo, raw, fill=False)
 
 	#lets clean the data to a user specified threshold using the input data quality to control the filter.  this means the machine learns about the data...
 	########
@@ -192,26 +193,26 @@ def kmallcleaner(filename, args):
 	print ("Points rejected: %.2f" % (len(outlier_cloud.points)))
 	inliers = np.asarray(inlier_cloud.points)
 	outliers = np.asarray(outlier_cloud.points)
-	inliers[:,2] *= ZSCALE
-	outliers[:,2] *= ZSCALE
+	inliers[:,2] /= ZSCALE
+	outliers[:,2] /= ZSCALE
 
 	########
 
 	#we need 1 list of ALL beams which are either accepted or rejected.
 	beamqualityresult = np.isin(beamcountarray, inlierindex)
 
-	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Inlier" + ".txt")
+	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_Inlier" + ".txt")
 	# np.savetxt(outfile, inliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
-	inlierraster = saveastif(outfilename, geo, inliers, ZSCALE=ZSCALE, fill=True)
+	inlierraster = saveastif(outfilename, geo, inliers, fill=True)
 
 	#we can now revalidate the outliers and re-accept if they fit the surface
 	# outlier_cloud = validateoutliers(inlierraster, outlier_cloud)
 
-	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Outlier" + ".txt")
+	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_Outlier" + ".txt")
 	np.savetxt(outfile, outliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	# outfilename = os.path.join(outfile + ".tif")
-	# saveastif(outfilename, geo, outliers, ZSCALE=ZSCALE, fill=False)
+	# saveastif(outfilename, geo, outliers, fill=False)
 
 	#write the outliers to a point SHAPE file
 	outfilename = os.path.join(outfile + ".shp")
@@ -322,6 +323,7 @@ def cleanoutlier1(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	# print (inlier_cloud)
 	# print (outlier_cloud)
 	percentage = (100 * (len(outlier_cloud.points) / len(pcd.points)))
+	print ("Current filter radius %.2f" % (currentfilter))
 	print ("Percentage rejection %.2f" % (percentage))
 
 	percentage = round(percentage, 1)
@@ -339,10 +341,10 @@ def cleanoutlier1(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
 ###############################################################################
-def saveastif(outfilename, geo, pcd, resolution=1, ZSCALE=1, fill=False):
+def saveastif(outfilename, geo, pcd, resolution=1, fill=False):
 	'''given a numpy array point cl;oud, make a floating point geotif file using rasterio'''
 
-	if len(cloud.points)==0:	
+	if len(pcd)==0:	
 		return
 		
 	NODATA = -999
@@ -389,7 +391,7 @@ def saveastif(outfilename, geo, pcd, resolution=1, ZSCALE=1, fill=False):
 		px = math.floor((row[0] - xmin) / xres)
 		py = math.floor(height - (row[1] - ymin) / yres) - 1 #lord knows why -1
 		# py, px = src.index(row[0], row[1])
-		arr[py, px] = row[2] / ZSCALE
+		arr[py, px] = row[2]
 		
 	#we might want to fill in the gaps. useful sometimes...
 	if fill:

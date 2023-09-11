@@ -425,8 +425,27 @@ class kmallreader:
 		self.fileptr.seek(curr, 0)
 		return data
 
+	# ###############################################################################
+	# def getRecordCount(self):
+	# 	'''read through the entire file as fast as possible to get a count of all records.  useful for progress bars so user can see what is happening'''
+	# 	count = 0
+	# 	start = 0
+	# 	end = 0
+	# 	self.rewind()
+
+	# 	numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
+	# 	start = time_sec + time_nanosec/1000000000
+	# 	self.rewind()
+	# 	while self.moreData():
+	# 		numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
+	# 		self.fileptr.seek(numberofbytes, 1)
+	# 		count += 1
+	# 	self.rewind()
+	# 	end = time_sec + time_nanosec/1000000000
+	# 	return count, start, end
+
 	###############################################################################
-	def getRecordCount(self):
+	def getRecordCount(self, id=""):
 		'''read through the entire file as fast as possible to get a count of all records.  useful for progress bars so user can see what is happening'''
 		count = 0
 		start = 0
@@ -439,26 +458,10 @@ class kmallreader:
 		while self.moreData():
 			numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
 			self.fileptr.seek(numberofbytes, 1)
-			count += 1
-		self.rewind()
-		end = time_sec + time_nanosec/1000000000
-		return count, start, end
-
-	###############################################################################
-	def getRecordCount(self):
-		'''read through the entire file as fast as possible to get a count of all records.  useful for progress bars so user can see what is happening'''
-		count = 0
-		start = 0
-		end = 0
-		self.rewind()
-
-		numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
-		start = time_sec + time_nanosec/1000000000
-		self.rewind()
-		while self.moreData():
-			numberofbytes, typeofdatagram, version, systemid, echosounderid, time_sec, time_nanosec, date = self.readDatagramHeader()
-			self.fileptr.seek(numberofbytes, 1)
-			count += 1
+			if id in typeofdatagram:
+				count += 1
+			if len(id) == 0:
+				count += 1
 		self.rewind()
 		end = time_sec + time_nanosec/1000000000
 		return count, start, end
