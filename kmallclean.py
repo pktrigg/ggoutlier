@@ -20,14 +20,16 @@
 #added percentage to args
 #added numpoints to args
 #added debug to args
+#fixed descaling after cleaning to txt file export
+#write outliers to a shape file point cloud so we can visualise them easily in GIS
+#profile to improve performance
+#scale the Z values so we accentuate the outlier noise from the horizontal noise
+#improve the indexing to tif file so its faster
 
 #todo##########################################
 #test with 10X vertical
 #test with 50x vertical
 #validate each outlier against the results and re-approve if it is now acceptable
-#scale the Z values so we accentuate the outlier noise from the horizontal noise
-#write outliers to a shape file point cloud so we can visualise them easily in GIS
-#profile to improve performance
 
 import os.path
 from argparse import ArgumentParser
@@ -95,6 +97,8 @@ def main():
 	else:
 		multiprocesshelper.log("Files to Import: %d" %(len(matches)))		
 		cpu = multiprocesshelper.getcpucount(args.cpu)
+		print("Processing with %d CPU's" % (cpu))
+
 		pool = mp.Pool(cpu)
 		multiprocesshelper.g_procprogress.setmaximum(len(matches))
 		poolresults = [pool.apply_async(kmallcleaner, (file, args), callback=multiprocesshelper.mpresult) for file in matches]
@@ -136,7 +140,6 @@ def kmallcleaner(filename, args):
 
 	# demonstrate how to load the navigation records into a list.  this is really handy if we want to make a trackplot for coverage
 	start_time = time.time() # time the process
-	print("Modifying Flags...")
 	while r.moreData():
 		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
 		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
@@ -175,7 +178,8 @@ def kmallcleaner(filename, args):
 
 	# Print the structured array
 	outfilename = os.path.join(outfile + "_R.tif")
-	saveastif(outfilename, geo, pcd, ZSCALE=ZSCALE, fill=False)
+	raw = np.asarray(pcd.points)
+	saveastif(outfilename, geo, raw, ZSCALE=ZSCALE, fill=False)
 
 	#lets clean the data to a user specified threshold using the input data quality to control the filter.  this means the machine learns about the data...
 	########
@@ -186,32 +190,37 @@ def kmallcleaner(filename, args):
 	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, TARGET, NUMPOINTS)
 	print ("Points accepted: %.2f" % (len(inlier_cloud.points)))
 	print ("Points rejected: %.2f" % (len(outlier_cloud.points)))
+	inliers = np.asarray(inlier_cloud.points)
+	outliers = np.asarray(outlier_cloud.points)
+	inliers[:,2] *= ZSCALE
+	outliers[:,2] *= ZSCALE
+
 	########
 
 	#we need 1 list of ALL beams which are either accepted or rejected.
 	beamqualityresult = np.isin(beamcountarray, inlierindex)
 
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Inlier" + ".txt")
-	# np.savetxt(outfile, (np.asarray(inlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	# np.savetxt(outfile, inliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	outfilename = os.path.join(outfile + ".tif")
-	inlierraster = saveastif(outfilename, geo, inlier_cloud, ZSCALE=ZSCALE, fill=True)
+	inlierraster = saveastif(outfilename, geo, inliers, ZSCALE=ZSCALE, fill=True)
 
 	#we can now revalidate the outliers and re-accept if they fit the surface
 	# outlier_cloud = validateoutliers(inlierraster, outlier_cloud)
 
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_C_Outlier" + ".txt")
-	np.savetxt(outfile, (np.asarray(outlier_cloud.points)), fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	np.savetxt(outfile, outliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	# outfilename = os.path.join(outfile + ".tif")
-	# saveastif(outfilename, geo, outlier_cloud, ZSCALE=ZSCALE, fill=False)
+	# saveastif(outfilename, geo, outliers, ZSCALE=ZSCALE, fill=False)
 
 	#write the outliers to a point SHAPE file
 	outfilename = os.path.join(outfile + ".shp")
 	w = shapefile.Writer(outfilename)
 
 	# for point in outlier_cloud.poin:
-	w.multipoint(np.asarray(outlier_cloud.points).tolist())
+	w.multipoint(outliers.tolist())
 	w.field('name', 'C')
-	w.record('multipoint1')
+	w.record('outlier')
 
 	w.close()
 
@@ -224,6 +233,7 @@ def kmallcleaner(filename, args):
 	print("Writing NEW KMALL file %s" % (outfilename))
 	pingcounter = 0
 	beamcounter = 0
+
 	r = kmall.kmallreader(filename)
 	while r.moreData():
 		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
@@ -236,7 +246,6 @@ def kmallcleaner(filename, args):
 			if clip > 0:
 				clipper(datagram, clip)
 
-			# setbeamquality(datagram, beamcounter, inlierindex)
 			update_progress("Writing cleaned data", pingcounter/recordcount)
 			pingcounter = pingcounter + 1
 
@@ -248,9 +257,6 @@ def kmallcleaner(filename, args):
 					beam.detectionType = 2
 				# beam flag offset is 3 bytes into the beam structure so we can now set that flag to whatever we want it to be
 				barray [beam.beambyteoffset + 3] = beam.detectionType
-				# barray [beam.beambyteoffset + 5] = beam.detectionType
-				# barray [beam.beambyteoffset + 7] = beam.detectionType
-				# barray [beam.beambyteoffset + 8] = beam.detectionType
 				beamcounter += 1
 			# now write out the modified byte array
 			outfileptr.write(bytes(barray))
@@ -264,16 +270,17 @@ def kmallcleaner(filename, args):
 	return
 
 ###############################################################################
-def setbeamquality(datagram, beamcounter, inlierindex):
-	'''apply the cleaning results to the ping of data'''
-	test_set=set(inlierindex)
-	for idx, beam in enumerate(datagram.beams):
-		if not beamcounter+idx in test_set: 
-		# if not beamcounter+idx in inlierindex: 
-			beam.detectionType = 2
-		else:
-			pk=1
-	return
+# def setbeamquality(datagram, beamcounter, inlierindex):
+# 	'''apply the cleaning results to the ping of data'''
+# 	test_set=set(inlierindex)
+# 	for idx, beam in enumerate(datagram.beams):
+# 		if not beamcounter+idx in test_set: 
+# 		# if not beamcounter+idx in inlierindex: 
+# 			beam.detectionType = 2
+# 		else:
+# 			pk=1
+# 	return
+
 ###############################################################################
 def validateoutliers(inlierraster, outlier_cloud):
 
@@ -285,76 +292,6 @@ def validateoutliers(inlierraster, outlier_cloud):
 	# py, px = inlierraster.index(row[0], row[1])
 
 	return outlier_cloud
-
-	########################v#######################################################
-	# print("Statistical outlier removal")
-	# voxel_down_pcd = pcd.voxel_down_sample(voxel_size=0.001)
-	# voxel_down_pcd = pcd
-	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=3.0) # 1.51
-	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=3.0) # 1.89
-	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=1.0) 
-	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0) # 3.54%
-	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.0) # 9.56
-
-	# obb = pcd.get_oriented_bounding_box()
-	# obb.color = (0,0,0)
-	# display_inlier_outlier(voxel_down_pcd, ind)
-
-	# o3d.visualization.draw_geometries([pcd, obb])
-
-	# pc = open3d.io.read_point_cloud(outfile, format='xyz')
-	# print (pcd)
-	# eps = 0.1  # DBSCAN epsilon parameter
-	# min_samples = 1  # DBSCAN minimum number of points
-	# despike_point_cloud(xyz, eps, min_samples)
-
-	# eps = 0.1  # DBSCAN epsilon parameter
-	# min_samples = 3  # DBSCAN minimum number of points
-	# despike_point_cloud(xyz, eps, min_samples)
-
-	# eps = 0.1  # DBSCAN epsilon parameter
-	# min_samples = 10  # DBSCAN minimum number of points
-	# despike_point_cloud(xyz, eps, min_samples)
-
-
-	# eps = 0.01  # DBSCAN epsilon parameter
-	# min_samples = 3  # DBSCAN minimum number of points
-	# despike_point_cloud(xyz, eps, min_samples)
-
-	# eps = 0.05  # DBSCAN epsilon parameter
-	# min_samples = 3  # DBSCAN minimum number of points
-	# despike_point_cloud(xyz, eps, min_samples)
-
-	# print ("DBSCAN...")
-	# xrange = max(xyz[:,0]) - min(xyz[:,0])
-	# yrange = max(xyz[:,1]) - min(xyz[:,1])
-	# maxrange = max(xrange, yrange)
-	# mediandepth = statistics.median(xyz[:, 2])
-	# print ("WaterDepth %.2f" % (mediandepth))
-	# eps = mediandepth * 0.05 # 1% waterdepth  bigger number rejects fewer points
-	# # eps = 0.1  # DBSCAN epsilon parameter
-	# min_samples = 5  # DBSCAN minimum number of points
-	# rejected = despike_point_cloud(xyz, eps, min_samples)
-	# print ("DBSCAN Complete")
-	# print ("Percentage rejected %.2f" % (len(rejected)/ len(xyz) * 100))	
-	# fig = plt.figure(figsize=(10, 6))
-	# ax = fig.add_subplot(111, projection='3d')
-	# # create light source object.
-	# # ls = LightSource(azdeg=0, altdeg=65)
-	
-	# # shade data, creating an rgb array.
-	# # rgb = ls.shade(z, plt.cm.RdYlBu)
-	
-	# zrange = max(xyz[:,2]) - min(xyz[:,2])
-	# xyzdisplay = xyz[::2]
-	# ax.scatter(xyzdisplay[:, 0], xyzdisplay[:, 1], xyzdisplay[:, 2], color = 'lightgrey', s=5)
-	# ax.scatter(rejected[:, 0], rejected[:, 1], rejected[:, 2], color = 'red', s=50)
-	# ax.set_xlim3d(min(xyz[:,0]), min(xyz[:,0]) + maxrange)
-	# zscale = 5
-	# ax.set_zlim3d(min(xyz[:,1]), (min(xyz[:,1]) + maxrange) * 5)
-	# ax.set_zlim3d(min(xyz[:,2]), (min(xyz[:,2]) + maxrange) * 5)
-
-	# plt.show()
 
 
 ##################################################################################
@@ -402,13 +339,14 @@ def cleanoutlier1(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
 ###############################################################################
-def saveastif(outfilename, geo, cloud, resolution=1, ZSCALE=1, fill=False):
+def saveastif(outfilename, geo, pcd, resolution=1, ZSCALE=1, fill=False):
+	'''given a numpy array point cl;oud, make a floating point geotif file using rasterio'''
 
 	if len(cloud.points)==0:	
 		return
 		
 	NODATA = -999
-	pcd = np.asarray(cloud.points)
+	# pcd = np.asarray(cloud.points)
 	xmin = pcd.min(axis=0)[0]
 	ymin = pcd.min(axis=0)[1]
 	zmin = pcd.min(axis=0)[2]
@@ -442,15 +380,15 @@ def saveastif(outfilename, geo, cloud, resolution=1, ZSCALE=1, fill=False):
 			nodata=NODATA,
 	) 
 	# populate the numpy array with the values....
-	arr = np.full((height+1, width+1), fill_value=NODATA, dtype=float)
+	arr = np.full((height, width), fill_value=NODATA, dtype=float)
 	
 	from numpy import ma
 	arr = ma.masked_values(arr, NODATA)
 
 	for row in pcd:
-		# px = math.floor((xmax - row[0]) / xres)
-		# py = math.floor((ymax - row[1]) / yres)
-		py, px = src.index(row[0], row[1])
+		px = math.floor((row[0] - xmin) / xres)
+		py = math.floor(height - (row[1] - ymin) / yres) - 1 #lord knows why -1
+		# py, px = src.index(row[0], row[1])
 		arr[py, px] = row[2] / ZSCALE
 		
 	#we might want to fill in the gaps. useful sometimes...
@@ -566,3 +504,74 @@ def	makedirs(odir):
 if __name__ == "__main__":
 		main()
 		# exit()
+
+	########################v#######################################################
+	# print("Statistical outlier removal")
+	# voxel_down_pcd = pcd.voxel_down_sample(voxel_size=0.001)
+	# voxel_down_pcd = pcd
+	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=3.0) # 1.51
+	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=3.0) # 1.89
+	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=1.0) 
+	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0) # 3.54%
+	# cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.0) # 9.56
+
+	# obb = pcd.get_oriented_bounding_box()
+	# obb.color = (0,0,0)
+	# display_inlier_outlier(voxel_down_pcd, ind)
+
+	# o3d.visualization.draw_geometries([pcd, obb])
+
+	# pc = open3d.io.read_point_cloud(outfile, format='xyz')
+	# print (pcd)
+	# eps = 0.1  # DBSCAN epsilon parameter
+	# min_samples = 1  # DBSCAN minimum number of points
+	# despike_point_cloud(xyz, eps, min_samples)
+
+	# eps = 0.1  # DBSCAN epsilon parameter
+	# min_samples = 3  # DBSCAN minimum number of points
+	# despike_point_cloud(xyz, eps, min_samples)
+
+	# eps = 0.1  # DBSCAN epsilon parameter
+	# min_samples = 10  # DBSCAN minimum number of points
+	# despike_point_cloud(xyz, eps, min_samples)
+
+
+	# eps = 0.01  # DBSCAN epsilon parameter
+	# min_samples = 3  # DBSCAN minimum number of points
+	# despike_point_cloud(xyz, eps, min_samples)
+
+	# eps = 0.05  # DBSCAN epsilon parameter
+	# min_samples = 3  # DBSCAN minimum number of points
+	# despike_point_cloud(xyz, eps, min_samples)
+
+	# print ("DBSCAN...")
+	# xrange = max(xyz[:,0]) - min(xyz[:,0])
+	# yrange = max(xyz[:,1]) - min(xyz[:,1])
+	# maxrange = max(xrange, yrange)
+	# mediandepth = statistics.median(xyz[:, 2])
+	# print ("WaterDepth %.2f" % (mediandepth))
+	# eps = mediandepth * 0.05 # 1% waterdepth  bigger number rejects fewer points
+	# # eps = 0.1  # DBSCAN epsilon parameter
+	# min_samples = 5  # DBSCAN minimum number of points
+	# rejected = despike_point_cloud(xyz, eps, min_samples)
+	# print ("DBSCAN Complete")
+	# print ("Percentage rejected %.2f" % (len(rejected)/ len(xyz) * 100))	
+	# fig = plt.figure(figsize=(10, 6))
+	# ax = fig.add_subplot(111, projection='3d')
+	# # create light source object.
+	# # ls = LightSource(azdeg=0, altdeg=65)
+	
+	# # shade data, creating an rgb array.
+	# # rgb = ls.shade(z, plt.cm.RdYlBu)
+	
+	# zrange = max(xyz[:,2]) - min(xyz[:,2])
+	# xyzdisplay = xyz[::2]
+	# ax.scatter(xyzdisplay[:, 0], xyzdisplay[:, 1], xyzdisplay[:, 2], color = 'lightgrey', s=5)
+	# ax.scatter(rejected[:, 0], rejected[:, 1], rejected[:, 2], color = 'red', s=50)
+	# ax.set_xlim3d(min(xyz[:,0]), min(xyz[:,0]) + maxrange)
+	# zscale = 5
+	# ax.set_zlim3d(min(xyz[:,1]), (min(xyz[:,1]) + maxrange) * 5)
+	# ax.set_zlim3d(min(xyz[:,2]), (min(xyz[:,2]) + maxrange) * 5)
+
+	# plt.show()
+

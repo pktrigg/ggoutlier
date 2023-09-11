@@ -248,20 +248,30 @@ class Cpointcloud:
 	# zarr = np.empty([0], dtype=float)
 	# qarr = np.empty([0], dtype=float)
 
-	xarr = []
-	yarr = []
-	zarr = []
-	qarr = []
-	idarr = []
+	# self.xarr = []
+	# self.yarr = []
+	# self.zarr = []
+	# self.qarr = []
+	# self.idarr = []
 
 	###############################################################################
 	def __init__(self, npx=None, npy=None, npz=None, npq=None, npid=None):
 		'''add the new ping of data to the existing array '''
-		np.append(self.xarr, np.array(npx))
-		np.append(self.yarr, np.array(npy))
-		np.append(self.zarr, np.array(npz))
-		np.append(self.qarr, np.array(npq))
-		np.append(self.idarr, np.array(npid))
+		# np.append(self.xarr, np.array(npx))
+		# np.append(self.yarr, np.array(npy))
+		# np.append(self.zarr, np.array(npz))
+		# np.append(self.qarr, np.array(npq))
+		# np.append(self.idarr, np.array(npid))
+		self.xarr = []
+		self.yarr = []
+		self.zarr = []
+		self.qarr = []
+		# idarr = []
+		# self.xarr = np.array(npx)
+		# self.yarr = np.array(npy)
+		# self.zarr = np.array(npz)
+		# self.qarr = np.array(npq)
+		# self.idarr = np.array(npid)
 
 	###############################################################################
 	def add(self, npx, npy, npz, npq):
