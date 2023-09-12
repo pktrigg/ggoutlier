@@ -25,6 +25,8 @@
 #profile to improve performance
 #scale the Z values so we accentuate the outlier noise from the horizontal noise
 #improve the indexing to tif file so its faster
+#code clean up
+#point clouds save to laz files so we can import and view in qgis neat profile view
 
 #todo##########################################
 #test with 10X vertical
@@ -41,7 +43,6 @@ import sys
 import time
 import glob
 import rasterio
-from rasterio.transform import Affine
 import multiprocessing as mp
 import shapefile
 
@@ -49,6 +50,8 @@ import kmall
 import fileutils
 import geodetic
 import multiprocesshelper
+import cloud2tif
+import lashelper
 
 ###########################################################################
 def main():
@@ -58,18 +61,14 @@ def main():
 	parser.add_argument('-i', 		action='store',			default="", 	dest='inputfile', 		help='Input filename/folder to process.')
 	parser.add_argument('-c', 		action='store', 		default="-1",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
 	parser.add_argument('-cpu', 	action='store', 		default='0', 	dest='cpu', 			help='number of cpu processes to use in parallel. [Default: 0, all cpu]')
-	parser.add_argument('-odir', 	action='store', 		default="50x",	dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
+	parser.add_argument('-odir', 	action='store', 		default="",	dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	parser.add_argument('-n', 		action='store', 		default="3",	dest='numpoints', 		help='Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:5]')
 	parser.add_argument('-p', 		action='store', 		default="1.0",	dest='outlierpercentage',help='Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. [Default:1.0]')
-	parser.add_argument('-z', 		action='store', 		default="10",	dest='zscale',			help='Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Thik of this as how you exxagerate teh vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
+	parser.add_argument('-z', 		action='store', 		default="-1.0",	dest='zscale',			help='Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Thik of this as how you exxagerate teh vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
 	parser.add_argument('-debug', 	action='store', 		default="-1",	dest='debug', 			help='Specify the number of pings to process.  good only for debugging. [Default:-1]')
 	
 	matches = []
 	args = parser.parse_args()
-	# args.inputfile = "/Users/paulkennedy/Documents/development/sampledata/0822_20210330_091839.kmall"
-	# args.inputfile = "c:/sampledata/EM304_0002_20220406_122446.kmall"
-	# args.inputfile = "c:/sampledata/EM2040_0822_20210330_091839.kmall"
-	# args.inputfile = "c:/sampledata/0494_20210530_165628.kmall"
 	# args.inputfile = "C:/sampledata/kmall/B_S2980_3005_20220220_084910.kmall"
 
 	if os.path.isfile(args.inputfile):
@@ -78,10 +77,13 @@ def main():
 	if len (args.inputfile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
 		inputfolder = os.getcwd()
-		matches = findFiles2(False, inputfolder, "*.kmall")
+		matches = fileutils.findFiles2(False, inputfolder, "*.kmall")
 
 	if os.path.isdir(args.inputfile):
 		matches = fileutils.findFiles2(False, args.inputfile, "*.kmall")
+
+	if len(args.odir) == 0:
+		args.odir = str("NearestNeighbours_%d_OutliersPercent_%.1f" % (int(args.numpoints), float(args.outlierpercentage)))
 
 	#make an output folder
 	if (len(matches) > 0):
@@ -89,7 +91,6 @@ def main():
 		print("Output Folder: %s" % (odir))
 		makedirs(odir)
 
-	# boundarytasks = []
 	results = []
 	if args.cpu == '1':
 		for file in matches:
@@ -139,7 +140,6 @@ def kmallcleaner(filename, args):
 	recordcount, starttimestamp, enftimestamp = r.getRecordCount("MRZ")
 
 	# demonstrate how to load the navigation records into a list.  this is really handy if we want to make a trackplot for coverage
-	start_time = time.time() # time the process
 	while r.moreData():
 		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
 		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
@@ -153,77 +153,75 @@ def kmallcleaner(filename, args):
 
 		if pingcounter == maxpings:
 			break
-		# continue
 
 	print("")
 	r.close()
 
-	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_R.txt")
+	pcd = o3d.geometry.PointCloud()
 	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
 	xyz[:,2] *= ZSCALE
-	
-	pcd = o3d.geometry.PointCloud()
 	pcd.points = o3d.utility.Vector3dVector(xyz)
-	print("Depths Loaded for cleaning: %d" % (len(pcd.points)))
-
-	# dt = np.dtype([('counter', np.int32), ('boolean', bool)])
-	# dt = np.dtype(('counter', np.int32))
-
-	# Create an empty structured array with 3 elements
-	# data = np.empty(len(pcd.points), dtype=dt)
+	print("Depths loaded for cleaning: %s" % (f'{len(pcd.points):,}'))
 
 	# Populate the 'counter' field automatically
 	beamcountarray = np.arange(0, len(pcd.points))  # This will populate 'counter' with values 1, 2, 3
-	# data['boolean'] = np.zeros(len(pcd.points))
-
-	# Print the structured array
-	outfilename = os.path.join(outfile + "_R.tif")
-	raw = np.asarray(pcd.points)
-	raw[:,2] /= ZSCALE
-	saveastif(outfilename, geo, raw, fill=False)
 
 	#lets clean the data to a user specified threshold using the input data quality to control the filter.  this means the machine learns about the data...
 	########
+	print("Understanding your data noise levels...")
+	start_time = time.time() # time the process
 	low = 0
 	high = 10
 	TARGET = float(args.outlierpercentage)
 	NUMPOINTS = int(args.numpoints)
-	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, high, TARGET, NUMPOINTS)
+	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier(pcd, low, high, TARGET, NUMPOINTS)
 	print ("Points accepted: %.2f" % (len(inlier_cloud.points)))
 	print ("Points rejected: %.2f" % (len(outlier_cloud.points)))
 	inliers = np.asarray(inlier_cloud.points)
 	outliers = np.asarray(outlier_cloud.points)
 	inliers[:,2] /= ZSCALE
 	outliers[:,2] /= ZSCALE
-
+	print("Clean Duration: %.3f seconds" % (time.time() - start_time)) # print the processing time. It is handy to keep an eye on processing performance.
 	########
 
 	#we need 1 list of ALL beams which are either accepted or rejected.
 	beamqualityresult = np.isin(beamcountarray, inlierindex)
 
+	#report on RAW POINTS
+	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_R.txt")
+	xyz[:,2] /= ZSCALE
+	np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	fname = lashelper.txt2las(outfile)
+	print ("Created LAZ file of input raw points: %s " % (fname))
+	# outfilename = os.path.join(outfile + "_R.tif")
+	# raw = np.asarray(pcd.points)
+	# raw[:,2] /= ZSCALE
+	# cloud2tif.saveastif(outfilename, geo, raw, fill=False)
+
+	#report on INLIERS
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_Inlier" + ".txt")
-	# np.savetxt(outfile, inliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-	outfilename = os.path.join(outfile + ".tif")
-	inlierraster = saveastif(outfilename, geo, inliers, fill=True)
+	np.savetxt(outfile, inliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	# outfilename = os.path.join(outfile + ".tif")
+	# inlierraster = cloud2tif.saveastif(outfilename, geo, inliers, fill=True)
+	#write the outliers to a point cloud laz file
+	fname = lashelper.txt2las(outfile)
+	print ("Created LAZ file of inliers: %s " % (fname))
 
-	#we can now revalidate the outliers and re-accept if they fit the surface
-	# outlier_cloud = validateoutliers(inlierraster, outlier_cloud)
-
+	#report on OUTLIERS
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_Outlier" + ".txt")
 	np.savetxt(outfile, outliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-	# outfilename = os.path.join(outfile + ".tif")
-	# saveastif(outfilename, geo, outliers, fill=False)
+	#write the outliers to a point cloud laz file
+	fname = lashelper.txt2las(outfile)
+	print ("Created LAZ file of outliers: %s " % (fname))
 
 	#write the outliers to a point SHAPE file
-	outfilename = os.path.join(outfile + ".shp")
-	w = shapefile.Writer(outfilename)
-
-	# for point in outlier_cloud.poin:
-	w.multipoint(outliers.tolist())
-	w.field('name', 'C')
-	w.record('outlier')
-
-	w.close()
+	# outfilename = os.path.join(outfile + ".shp")
+	# w = shapefile.Writer(outfilename)
+	# # for point in outlier_cloud.poin:
+	# w.multipoint(outliers.tolist())
+	# w.field('name', 'C')
+	# w.record('outlier')
+	# w.close()
 
 	#now lets write out a NEW KMALL file with the beams modified...
 	#create an output file....
@@ -296,7 +294,7 @@ def validateoutliers(inlierraster, outlier_cloud):
 
 
 ##################################################################################
-def cleanoutlier1(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
+def cleanoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	'''clean outliers using binary chop to control how many points we reject'''
 	'''use spherical radius to identify outliers and clusters'''
 	'''binary chop will aim for target percentage of data deleted rather than a fixed filter level'''
@@ -306,23 +304,18 @@ def cleanoutlier1(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	'''If a point has no friends, then he is an outlier'''
 	'''if a point has moew the NUMPOINTS in the spherical radius then he is an inlier, ie good'''
 
-	currentfilter = (high+low)/2
-
 	#outlier removal by radius
 	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
 	# http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
 	
-	nb_points=NUMPOINTS # the number points inside 
-	radius=currentfilter
 	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
 	#ind: The index of the points which are NOT outliers
-	cl, inlierindex = pcd.remove_radius_outlier(nb_points= nb_points, radius=radius)
+	currentfilter = (high+low)/2
+	cl, inlierindex = pcd.remove_radius_outlier(nb_points = NUMPOINTS, radius = currentfilter)
 
-	inlier_cloud = pcd.select_by_index(inlierindex, invert=False)
-	outlier_cloud = pcd.select_by_index(inlierindex, invert=True)
-	# print (inlier_cloud)
-	# print (outlier_cloud)
-	percentage = (100 * (len(outlier_cloud.points) / len(pcd.points)))
+	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
+	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
+	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
 	print ("Current filter radius %.2f" % (currentfilter))
 	print ("Percentage rejection %.2f" % (percentage))
 
@@ -330,77 +323,13 @@ def cleanoutlier1(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	if percentage < TARGET:
 		#we have rejected too few, so run again setting the low to the pervious value
 		print ("Filter level increasing to reject a few more points...")
-		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, low, currentfilter, TARGET, NUMPOINTS)
-		# percentage = cleanoutlier1(pcd, low, currentfilter, target, NUMPOINTS)
+		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier(pcd, low, currentfilter, TARGET, NUMPOINTS)
 	elif percentage > TARGET:
 		#we have rejected too few, so run again setting the low to the pervious value
 		print ("Filter level decreasing to reject a few less points...")
-		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier1(pcd, currentfilter, high, TARGET, NUMPOINTS)
-		# percentage = cleanoutlier1(pcd, currentfilter, high, target, NUMPOINTS)
-	# else:
+		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier(pcd, currentfilter, high, TARGET, NUMPOINTS)
+
 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
-
-###############################################################################
-def saveastif(outfilename, geo, pcd, resolution=1, fill=False):
-	'''given a numpy array point cl;oud, make a floating point geotif file using rasterio'''
-
-	if len(pcd)==0:	
-		return
-		
-	NODATA = -999
-	# pcd = np.asarray(cloud.points)
-	xmin = pcd.min(axis=0)[0]
-	ymin = pcd.min(axis=0)[1]
-	zmin = pcd.min(axis=0)[2]
-	
-	xmax = pcd.max(axis=0)[0]
-	ymax = pcd.max(axis=0)[1]
-	zmax = pcd.max(axis=0)[2]
-
-	xres 	= resolution
-	yres 	= resolution
-	width 	= math.ceil((xmax - xmin) / resolution)
-	height 	= math.ceil((ymax - ymin) / resolution)
-
-	transform = Affine.translation(xmin - xres / 2, ymin - yres / 2) * Affine.scale(xres, yres)
-	
-	print("Creating tif file... %s" % (outfilename))
-	from rasterio.transform import from_origin
-	transform = from_origin(xmin, ymax, xres, yres)
-
-	# save to file...
-	src= rasterio.open(
-			outfilename,
-			mode="w",
-			driver="GTiff",
-			height=height,
-			width=width,
-			count=1,
-			dtype='float32',
-			crs=geo.projection.srs,
-			transform=transform,
-			nodata=NODATA,
-	) 
-	# populate the numpy array with the values....
-	arr = np.full((height, width), fill_value=NODATA, dtype=float)
-	
-	from numpy import ma
-	arr = ma.masked_values(arr, NODATA)
-
-	for row in pcd:
-		px = math.floor((row[0] - xmin) / xres)
-		py = math.floor(height - (row[1] - ymin) / yres) - 1 #lord knows why -1
-		# py, px = src.index(row[0], row[1])
-		arr[py, px] = row[2]
-		
-	#we might want to fill in the gaps. useful sometimes...
-	if fill:
-		from rasterio.fill import fillnodata
-		arr = fillnodata(arr, mask=None, max_search_distance=xres*2, smoothing_iterations=0)
-
-	src.write(arr, 1)
-	src.close()
-	# return src
 
 ###############################################################################
 def clipper(datagram, clip):
@@ -469,23 +398,23 @@ def computebathypointcloud(datagram, geo):
 # 	return rejected_points
 
 
-###############################################################################
-def findFiles2(recursive, filespec, filter):
-	'''tool to find files based on user request.  This can be a single file, a folder start point for recursive search or a wild card'''
-	matches = []
-	if recursive:
-		matches = glob(os.path.join(filespec, "**", filter), recursive = True)
-	else:
-		matches = glob(os.path.join(filespec, filter))
+# ###############################################################################
+# def findFiles2(recursive, filespec, filter):
+# 	'''tool to find files based on user request.  This can be a single file, a folder start point for recursive search or a wild card'''
+# 	matches = []
+# 	if recursive:
+# 		matches = glob(os.path.join(filespec, "**", filter), recursive = False)
+# 	else:
+# 		matches = glob(os.path.join(filespec, filter), recursive = False)
 	
-	mclean = []
-	for m in matches:
-		mclean.append(m.replace('\\','/'))
+# 	mclean = []
+# 	for m in matches:
+# 		mclean.append(m.replace('\\','/'))
 		
-	# if len(mclean) == 0:
-	# 	print ("Nothing found to convert, quitting")
-		# exit()
-	return mclean
+# 	# if len(mclean) == 0:
+# 	# 	print ("Nothing found to convert, quitting")
+# 		# exit()
+# 	return mclean
 
 ###############################################################################
 def update_progress(job_title, progress):

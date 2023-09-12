@@ -17,7 +17,7 @@ KmallClean uses machine learning to clean a point cloud inside a kmall file and 
 ***Command Line Parameters***  
 *	-epsg	Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326'[Default: 0 == automatic UTM zone calculation]  
 *	-i		Input filename/folder to process.  
-*	If nothing is specificed the current folder is used.  
+*	If -i is not specificed the current folder is used.  
 *	If a file is specified it will be processed.  
 *	If a folder is specified all files in the folder will br processed.  
 *	Wildcards are not supported.  

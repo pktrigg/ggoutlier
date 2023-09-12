@@ -200,6 +200,15 @@ def outfilename(filename, prefix="", appendix="", extension=""):
 	return os.path.join(os.path.dirname(filename), prefix + root + appendix + extension).replace('\\','/')
 
 ###############################################################################
+def deletefile(filename):
+	if os.path.exists(filename):
+		try:			
+			os.remove(filename)
+		except:	
+			return
+			#log("file is locked, cannot delete: %s " % (filename))
+
+###############################################################################
 if __name__ == "__main__":
 	print(outfilename("c:\\temp\\pk.txt", ))
 	print(outfilename("c:/temp/pk.txt", "", "_appendix"))
