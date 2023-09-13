@@ -8,7 +8,7 @@
 			"stopOnEntry": false,
 			"program": "${file}",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-i", "Y:/Subsea-Cloud/ggtools/kmallclean", "-cpu", "1",  "-debug", "100", "-n", "2", "-p", "2"]
+			"args": ["-i", "Y:/Subsea-Cloud/ggtools/kmallclean", "-cpu", "1",  "-debug", "100", "-n", "0", "-p", "0.5"]
 		}
 	]
 }

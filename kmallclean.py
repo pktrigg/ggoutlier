@@ -27,6 +27,8 @@
 #improve the indexing to tif file so its faster
 #code clean up
 #point clouds save to laz files so we can import and view in qgis neat profile view
+#trap max numpoints to be 1 or more
+#ignore filter for outer beams at edge of swath
 
 #todo##########################################
 #test with 10X vertical
@@ -64,7 +66,7 @@ def main():
 	parser.add_argument('-odir', 	action='store', 		default="",	dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	parser.add_argument('-n', 		action='store', 		default="3",	dest='numpoints', 		help='Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:5]')
 	parser.add_argument('-p', 		action='store', 		default="1.0",	dest='outlierpercentage',help='Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. [Default:1.0]')
-	parser.add_argument('-z', 		action='store', 		default="-1.0",	dest='zscale',			help='Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Thik of this as how you exxagerate teh vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
+	parser.add_argument('-z', 		action='store', 		default="1.0",	dest='zscale',			help='Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:1.0]')
 	parser.add_argument('-debug', 	action='store', 		default="-1",	dest='debug', 			help='Specify the number of pings to process.  good only for debugging. [Default:-1]')
 	
 	matches = []
@@ -83,7 +85,7 @@ def main():
 		matches = fileutils.findFiles2(False, args.inputfile, "*.kmall")
 
 	if len(args.odir) == 0:
-		args.odir = str("NearestNeighbours_%d_OutliersPercent_%.1f" % (int(args.numpoints), float(args.outlierpercentage)))
+		args.odir = str("NearestNeighbours_%d_OutliersPercent_%.2f" % (int(args.numpoints), float(args.outlierpercentage)))
 
 	#make an output folder
 	if (len(matches) > 0):
@@ -173,7 +175,7 @@ def kmallcleaner(filename, args):
 	low = 0
 	high = 10
 	TARGET = float(args.outlierpercentage)
-	NUMPOINTS = int(args.numpoints)
+	NUMPOINTS = max(int(args.numpoints),1)
 	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier(pcd, low, high, TARGET, NUMPOINTS)
 	print ("Points accepted: %.2f" % (len(inlier_cloud.points)))
 	print ("Points rejected: %.2f" % (len(outlier_cloud.points)))
@@ -192,6 +194,7 @@ def kmallcleaner(filename, args):
 	xyz[:,2] /= ZSCALE
 	np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	fname = lashelper.txt2las(outfile)
+	fileutils.deletefile(outfile)
 	print ("Created LAZ file of input raw points: %s " % (fname))
 	# outfilename = os.path.join(outfile + "_R.tif")
 	# raw = np.asarray(pcd.points)
@@ -205,6 +208,7 @@ def kmallcleaner(filename, args):
 	# inlierraster = cloud2tif.saveastif(outfilename, geo, inliers, fill=True)
 	#write the outliers to a point cloud laz file
 	fname = lashelper.txt2las(outfile)
+	fileutils.deletefile(outfile)
 	print ("Created LAZ file of inliers: %s " % (fname))
 
 	#report on OUTLIERS
@@ -212,6 +216,7 @@ def kmallcleaner(filename, args):
 	np.savetxt(outfile, outliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	#write the outliers to a point cloud laz file
 	fname = lashelper.txt2las(outfile)
+	fileutils.deletefile(outfile)
 	print ("Created LAZ file of outliers: %s " % (fname))
 
 	#write the outliers to a point SHAPE file
@@ -250,12 +255,15 @@ def kmallcleaner(filename, args):
 
 			#write out the kmall datagrem with modified beam flags
 			barray=bytearray(bbytes)
-			for beam in datagram.beams:
+			for idx, beam in enumerate(datagram.beams):
 				#apply the results of the cleaning process...
+
 				if not beamqualityresult[beamcounter]:
-					beam.detectionType = 2
+					if (idx > 0) & (idx < len(datagram.beams)): # do not reject the outer edge of the swath.  these ar
+						beam.detectionType = 2
 				# beam flag offset is 3 bytes into the beam structure so we can now set that flag to whatever we want it to be
 				barray [beam.beambyteoffset + 3] = beam.detectionType
+				#this is the beam counter for ALL pings + current ping since start of file.  we use it to keep track of the cleaned points so this is super important.
 				beamcounter += 1
 			# now write out the modified byte array
 			outfileptr.write(bytes(barray))
@@ -319,7 +327,8 @@ def cleanoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	print ("Current filter radius %.2f" % (currentfilter))
 	print ("Percentage rejection %.2f" % (percentage))
 
-	percentage = round(percentage, 1)
+	decimals = len(str(TARGET).split(".")[1])
+	percentage = round(percentage, decimals)
 	if percentage < TARGET:
 		#we have rejected too few, so run again setting the low to the pervious value
 		print ("Filter level increasing to reject a few more points...")
@@ -371,7 +380,7 @@ def computebathypointcloud(datagram, geo):
 
 	for beam in datagram.beams:
 		beam.east, beam.north = geo.convertToGrid((beam.deltaLongitude_deg + datagram.longitude), (beam.deltaLatitude_deg + datagram.latitude))
-		beam.depth = beam.z_reRefPoint_m + datagram.txTransducerDepth_m
+		beam.depth = (beam.z_reRefPoint_m + datagram.txTransducerDepth_m) * -1.0 #invert depths so we have negative depths.
 		# beam.depth = beam.z_reRefPoint_m - datagram.z_waterLevelReRefPoint_m
 		# beam.id			= datagram.pingCnt
 
