@@ -8,10 +8,12 @@
 			"stopOnEntry": false,
 			"program": "${file}",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-i", "Y:/Subsea-Cloud/ggtools/kmallclean", "-cpu", "1",  "-debug", "100", "-n", "0", "-p", "0.5"]
+			"args": ["-i", "Y:/Subsea-Cloud/ggtools/kmallclean/tiff", "-cpu", "1",  "-debug", "1000000", "-n", "20", "-p", "0.1", "-z", "10", "-epsg", "32751"]
 		}
 	]
 }
 // "args": ["-i", "C:/sampledata"]
 //"-i", "C:/sampledata/kmall/drix_newfoundland", 
 //"-odir", "Z1_N5_P0.5",
+
+

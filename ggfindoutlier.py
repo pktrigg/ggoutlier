@@ -1,41 +1,22 @@
-#name:		  	kmallclean
+#name:		  	ggfindoutlier
 #created:		August 2023
 #by:			paul.kennedy@guardiangeomatics.com
-#description:   python module to read a Kongsberg KMALL file, create a point cloud, identify outliers, write out a NEW kmall file with flags set
+#description:   python module to read a point cloud or raster file of depths, identify outliers, write out points to a shap or laz file for further QC
 
 #done##########################################
-#reading of a kmall file to a point cloud
-#pass pcd to open3d
-#view pcd file
-#find outliers
-#save inliers, outliers to a file
-#add option to clip on angle
-#create tif file from inliers
-#option to reject n percent of the pcd
-#create tif file of raw data
-#create a tif file of inliers
-#create a tif file of outliers
-#optionally fill the tif file to interpolate.  we need this for the revalidation
-#rewrite rejected records to a new kmall file
-#added percentage to args
-#added numpoints to args
-#added debug to args
-#fixed descaling after cleaning to txt file export
-#write outliers to a shape file point cloud so we can visualise them easily in GIS
-#profile to improve performance
-#scale the Z values so we accentuate the outlier noise from the horizontal noise
-#improve the indexing to tif file so its faster
-#code clean up
-#point clouds save to laz files so we can import and view in qgis neat profile view
-#trap max numpoints to be 1 or more
-#ignore filter for outer beams at edge of swath
+# load a laz file
+# compute the cloud2raster MEAN
+# compute the cloud2raster MEDIAN
+# compute the cloud2raster COUNT
+# compute the cloud2raster STDDEV
 
 #todo##########################################
-#test with 1X vertical
-#test with 50x vertical
-#test with 100X vertical
-
-#validate each outlier against the results and re-approve if it is now acceptable
+#load point cloud file from ascii fileutils
+# load a tif file
+# write results to laz
+# allow user to specify threshol by iho order
+# allow user to specify threshold by percentage
+# allow user to specify threshold by delta Z
 
 import os.path
 from argparse import ArgumentParser
@@ -57,24 +38,27 @@ import geodetic
 import multiprocesshelper 
 import cloud2tif
 import lashelper
+import ggmbesstandard
 
 ###########################################################################
 def main():
 
+	iho = ggmbesstandard.sp44()
+	msg = str(iho.getorders())
+
 	parser = ArgumentParser(description='Read a KMALL file.')
 	parser.add_argument('-epsg', 	action='store', 		default="0",	dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
 	parser.add_argument('-i', 		action='store',			default="", 	dest='inputfile', 		help='Input filename/folder to process.')
-	parser.add_argument('-c', 		action='store', 		default="-1",	dest='clip', 			help='clip outer beams each side to this max angle. Set to -1 to disable [Default: -1]')
 	parser.add_argument('-cpu', 	action='store', 		default='0', 	dest='cpu', 			help='number of cpu processes to use in parallel. [Default: 0, all cpu]')
 	parser.add_argument('-odir', 	action='store', 		default="",	dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	parser.add_argument('-n', 		action='store', 		default="1",	dest='numpoints', 		help='Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:1]')
 	parser.add_argument('-p', 		action='store', 		default="0.1",	dest='outlierpercentage',help='Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. [Default:0.1]')
 	parser.add_argument('-z', 		action='store', 		default="1.0",	dest='zscale',			help='Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:1.0]')
+	parser.add_argument('-sp44', 	action='store', 		default="order1a",	dest='sp44',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + msg + ' [Default:order1a]' )
 	parser.add_argument('-debug', 	action='store', 		default="-1",	dest='debug', 			help='Specify the number of pings to process.  good only for debugging. [Default:-1]')
 	
 	matches = []
 	args = parser.parse_args()
-	# args.inputfile = "C:/sampledata/kmall/B_S2980_3005_20220220_084910.kmall"
 
 	if os.path.isfile(args.inputfile):
 		matches.append(args.inputfile)
@@ -82,18 +66,21 @@ def main():
 	if len (args.inputfile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
 		inputfolder = os.getcwd()
-		matches = fileutils.findFiles2(False, inputfolder, "*.kmall")
+		matches = fileutils.findFiles2(False, inputfolder, "*.tif")
 
 	if os.path.isdir(args.inputfile):
-		matches = fileutils.findFiles2(False, args.inputfile, "*.kmall")
+		matches = fileutils.findFiles2(False, args.inputfile, "*.tif")
 
+	if len(matches) == 0:
+		log("oops, no files found to process, quitting")
+		exit(0)
+		
 	#make an output folder
 	if len(args.odir) == 0:
 		args.odir = str("NearestNeighbours_%d_OutliersPercent_%.2f_zscale_%.2f" % (int(args.numpoints), float(args.outlierpercentage), float(args.zscale)))
 	odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 	makedirs(odir)
 
-	# LOGGER = logging.getLogger(os.path.join(odir,"kmallclean_log.txt"))
 	logging.basicConfig(filename = os.path.join(odir,"kmallclean_log.txt"), level=logging.INFO)
 	log("configuration: %s" % (str(args)))
 	log("Output Folder: %s" % (odir))
@@ -101,7 +88,7 @@ def main():
 	results = []
 	if args.cpu == '1':
 		for file in matches:
-			kmallcleaner(file, args)
+			findoutlier(file, args)
 	else:
 		multiprocesshelper.log("Files to Import: %d" %(len(matches)))		
 		cpu = multiprocesshelper.getcpucount(args.cpu)
@@ -109,7 +96,7 @@ def main():
 
 		pool = mp.Pool(cpu)
 		multiprocesshelper.g_procprogress.setmaximum(len(matches))
-		poolresults = [pool.apply_async(kmallcleaner, (file, args), callback=multiprocesshelper.mpresult) for file in matches]
+		poolresults = [pool.apply_async(findoutlier, (file, args), callback=multiprocesshelper.mpresult) for file in matches]
 		pool.close()
 		pool.join()
 		# for idx, result in enumerate (poolresults):
@@ -117,9 +104,8 @@ def main():
 		# 	print (result._value)
 
 ############################################################
-def kmallcleaner(filename, args):
-	'''we will try to auto clean beams by extracting the beam xyzF flag data and attempt to clean in scipy'''
-	'''we then set the beam flags to reject files we think are outliers and write the kmall file to a new file'''
+def findoutlier(filename, args):
+	'''we will try to find outliers using machine learning to determine the typical noise level in the file and adapt filter accordingly so the user-requested noise level is obatined.'''
 
 	log("Processing file: %s" % (filename))
 
@@ -128,55 +114,61 @@ def kmallcleaner(filename, args):
 		maxpings = 999999999
 
 	pingcounter = 0
-	clip = float(args.clip)
 	beamcountarray = 0
 	ZSCALE = float(args.zscale) # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
 	
-	log("Loading Point Cloud...")
-	pointcloud = kmall.Cpointcloud()
+	# if os.path.splitext(filename)[1].lower() == ".tif":
+		# rio = rasterio.open(filename)
+		# arr = rio.read(1)  # read all raster values
 
-	r = kmall.kmallreader(filename)
-
-	if args.epsg == '0':
-		approxlongitude, approxlatitude = r.getapproximatepositon()
-		args.epsg = geodetic.epsgfromlonglat (approxlongitude, approxlatitude)
+	with rasterio.open(filename) as src:
+		band1 = src.read(1)
+		z = band1.flatten()
+		print('Band1 has shape', band1.shape)
+		height = band1.shape[0]
+		width = band1.shape[1]
+		cols, rows = np.meshgrid(np.arange(width), np.arange(height))
+		xs, ys = rasterio.transform.xy(src.transform, rows, cols)
+		x = np.array(xs).flatten()
+		y = np.array(ys).flatten()
+		print('lons shape', x.shape)
+		# src._crs.wkt
+		xyz = np.stack((x,y,z), axis=1)
+		NODATA = src.nodatavals[0]
+	# if args.epsg == '0':
+	# 	approxlongitude, approxlatitude = r.getapproximatepositon()
+	# 	args.epsg = geodetic.epsgfromlonglat (approxlongitude, approxlatitude)
 
 	#load the python proj projection object library if the user has requested it
 	geo = geodetic.geodesy(args.epsg)
 	log("EPSGCode for geodetic conversions: %s" % (args.epsg))
 	
+	log("Loading Point Cloud...")
 	#get the record count so we can show a progress bar
-	recordcount, starttimestamp, enftimestamp = r.getRecordCount("MRZ")
-
-	# demonstrate how to load the navigation records into a list.  this is really handy if we want to make a trackplot for coverage
-	while r.moreData():
-		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
-		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
-		typeofdatagram, datagram = r.readDatagram()
-		if typeofdatagram == '#MRZ':
-			datagram.read()
-			x, y, z, q = computebathypointcloud(datagram, geo)
-			pointcloud.add(x, y, z, q)
-			update_progress("Extracting Point Cloud", pingcounter/recordcount)
-			pingcounter = pingcounter + 1
-
-		if pingcounter == maxpings:
-			break
-
-	log("")
-	r.close()
 
 	pcd = o3d.geometry.PointCloud()
-	xyz = np.column_stack([pointcloud.xarr,pointcloud.yarr, pointcloud.zarr])
+
+	#remove the NODATA values
+	xyz = xyz[np.all(xyz != NODATA, axis=1)]
 	xyz[:,2] *= ZSCALE
 	pcd.points = o3d.utility.Vector3dVector(xyz)
+	xyz[:,2] /= ZSCALE
+
+	# Code to generate example dataset
+	# xyz = np.random.uniform(0.0, 1000.0, size=(1000,3))
+	# xyz = np.asarray([[0,5,10],[0,6,10],[0,7,10],[1,5,11],[1,6,11],[1,7,11],[2,5,12],[2,6,12],[2,7,12], [0,5,999], [0,5,50], [0,5,51], [0,5,52]])
+
+	# cloud2tif.point2raster(filename + "_mean.tif", geo, xyz, resolution=1, bintype='mean', fill=False)
+	# cloud2tif.point2raster(filename + "_median.tif", geo, xyz, resolution=1, bintype='median', fill=False)
+	# cloud2tif.point2raster(filename + "_count.tif", geo, xyz, resolution=1, bintype='count', fill=False)
+	cloud2tif.point2raster(filename + "_STD.tif", geo, xyz, resolution=1, bintype='stddev', fill=False)
+
 	log("Depths loaded for cleaning: %s" % (f'{len(pcd.points):,}'))
 
 	# Populate the 'counter' field automatically
 	beamcountarray = np.arange(0, len(pcd.points))  # This will populate 'counter' with values 1, 2, 3
 
-	#lets clean the data to a user specified threshold using the input data quality to control the filter.  this means the machine learns about the data...
-	########
+	#PERCENTAGE PASS
 	log("Understanding your data noise levels...")
 	start_time = time.time() # time the process
 	low = 0
@@ -184,7 +176,17 @@ def kmallcleaner(filename, args):
 	TARGET = float(args.outlierpercentage)
 	NUMPOINTS = max(int(args.numpoints),1)
 	pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier2(pcd, low, high, TARGET, NUMPOINTS)
-	# pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier(pcd, low, high, TARGET, NUMPOINTS)
+
+	#SINGLE PASS
+	# start_time = time.time() # time the process
+	# currentfilter = 20 #bigger removes fewer points
+	# NUMPOINTS = int(args.numpoints)
+	# cl, inlierindex = pcd.remove_statistical_outlier(nb_neighbors=NUMPOINTS,	std_ratio=currentfilter)
+	# inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
+	# outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
+
+	# cl, inlierindex = pcd.remove_radius_outlier(nb_points = NUMPOINTS, radius = currentfilter)
+
 	log ("Points accepted: %.2f" % (len(inlier_cloud.points)))
 	log ("Points rejected: %.2f" % (len(outlier_cloud.points)))
 	inliers = np.asarray(inlier_cloud.points)
@@ -201,7 +203,7 @@ def kmallcleaner(filename, args):
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_R.txt")
 	xyz[:,2] /= ZSCALE
 	np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-	fname = lashelper.txt2las(outfile)
+	fname = lashelper.txt2las(outfile, epsg=args.epsg)
 	#save as a tif file...
 	outfilename = os.path.join(outfile + "_Depth.tif")
 	lashelper.lasgrid4( fname, outfilename, resolution=1, epsg=args.epsg)
@@ -224,15 +226,14 @@ def kmallcleaner(filename, args):
 	#write the outliers to a point cloud laz file
 	fname = lashelper.txt2las(outfile, epsg=args.epsg)
 	lashelper.lasgrid4( fname, outfilename, resolution=1, epsg=args.epsg)
-	fileutils.deletefile(outfile)
+	# fileutils.deletefile(outfile)
 	log ("Created LAZ file of inliers: %s " % (fname))
 
 	#report on OUTLIERS
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_Outlier" + ".txt")
 	np.savetxt(outfile, outliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
 	#write the outliers to a point cloud laz file
-	fname = lashelper.txt2las(outfile)
-	fileutils.deletefile(outfile)
+	fname = lashelper.txt2las(outfile, epsg=args.epsg)
 	log ("Created LAZ file of outliers: %s " % (fname))
 
 	# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
@@ -273,43 +274,6 @@ def kmallcleaner(filename, args):
 	pingcounter = 0
 	beamcounter = 0
 
-	r = kmall.kmallreader(filename)
-	while r.moreData():
-		# read a datagram.  If we support it, return the datagram type and aclass for that datagram
-		# The user then needs to call the read() method for the class to undertake a fileread and binary decode.  This keeps the read super quick.
-		typeofdatagram, datagram = r.readDatagram()
-		bbytes = datagram.loadbytes() # get a hold of the bytes for the ping so we can modify them and write to a new file.
-		if typeofdatagram == '#MRZ':
-			datagram.read()
-			# clip the outer beams...
-			if clip > 0:
-				clipper(datagram, clip)
-
-			update_progress("Writing cleaned data", pingcounter/recordcount)
-			pingcounter = pingcounter + 1
-
-			#write out the kmall datagrem with modified beam flags
-			barray=bytearray(bbytes)
-			for idx, beam in enumerate(datagram.beams):
-				#apply the results of the cleaning process...
-
-				if not beamqualityresult[beamcounter]:
-					if (idx > 0) & (idx < len(datagram.beams)): # do not reject the outer edge of the swath.  these ar
-						beam.detectionType = 2
-				# beam flag offset is 3 bytes into the beam structure so we can now set that flag to whatever we want it to be
-				barray [beam.beambyteoffset + 3] = beam.detectionType
-				#this is the beam counter for ALL pings + current ping since start of file.  we use it to keep track of the cleaned points so this is super important.
-				beamcounter += 1
-			# now write out the modified byte array
-			outfileptr.write(bytes(barray))
-
-		else:
-			outfileptr.write(bbytes)
-
-		if pingcounter == maxpings:
-			break
-		# continue
-	
 	log("Cleaning complete at: %s" % (datetime.now()))
 	return outfilename
 

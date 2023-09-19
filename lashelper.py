@@ -18,6 +18,7 @@ import time
 import logging
 import ctypes
 import multiprocessing
+import tempfile
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 import geodetic
@@ -168,7 +169,7 @@ def las2asc(filename):
 	return outfilename
 
 ###############################################################################
-def txt2las(filename):
+def txt2las(filename, epsg='4326'):
 	'''import from XYZ record to a las file'''
 
 	odirlog = makedirs(os.path.dirname(filename))	
@@ -181,11 +182,14 @@ def txt2las(filename):
 
 	cmd = "txt2las.exe" + \
 		" -i %s" % (filename) + \
+		" -epsg %s" % (epsg) + \
 		" -o %s" % (outfilename)
 
 	stdout, stderr = runner(cmd, False)
 
-	return outfilename
+	if epsg != '4326':
+		fname = las2lasEPSG(outfilename, epsg=epsg)
+	return fname
 
 ###############################################################################
 def lasgrid(filename, resolution):
@@ -201,6 +205,31 @@ def lasgrid(filename, resolution):
 	cmd = "lasgrid64.exe" + \
 		" -i %s" % (filename) + \
 		" -drop_x_below %s" % (str(10))+ \
+		" -mem %s" % (str(1900)) + \
+		" -step %s" % (str(resolution)) + \
+		" -%s" % ('average') + \
+		" -o %s" % (outfilename)
+
+	stdout, stderr = runner(cmd, False)
+
+	return outfilename
+###############################################################################
+def lasgrid4(filename, outfilename, resolution, epsg='31984'):
+	'''use lasgrid to grid a file efficiently at the user specified resolution'''
+
+	odirlog = makedirs(os.path.dirname(filename))	
+
+	root = os.path.splitext(os.path.basename(filename))[0]
+
+	if len(outfilename) == 0:
+		outfilename = os.path.join(os.path.dirname(filename), root + ".tif")
+		outfilename = outfilename.replace('\\','/')
+	else:
+		outfilename = outfilename.replace('\\','/')
+
+	cmd = "lasgrid64.exe" + \
+		" -i %s" % (filename) + \
+		" -epsg %s" % (epsg) + \
 		" -mem %s" % (str(1900)) + \
 		" -step %s" % (str(resolution)) + \
 		" -%s" % ('average') + \
@@ -867,6 +896,36 @@ def lasoverlap(filename1, filename2, odir, resolution=1, prefix=""):
 	stdout, stderr = runner(cmd, False)
 
 	return outfilename
+
+###############################################################################
+def las2lasEPSG(filename, odir="", epsg="4326"):
+	'''apply EPSG code to a las file'''
+
+	filename = os.path.abspath(filename).replace('\\','/')
+
+	root = os.path.splitext(os.path.basename(filename))[0]
+	outfilename = os.path.join(odir, root + "_EPSG_" + epsg + '.laz')
+	outfilename = outfilename.replace('\\','/')
+
+	outfilename = os.path.join(os.path.dirname(filename), root + ".laz")
+	# outfilename = os.path.join(os.path.dirname(filename), root + "_EPSG_" + epsg + ".laz")
+	outfilename = outfilename.replace('\\','/')
+
+	with tempfile.TemporaryDirectory() as tmp:
+		path = os.path.join(tmp, 'tmp')
+	# use path
+	fileutils.copyfile(filename, path)
+
+	cmd = "las2las64.exe" + \
+		" -i %s " % (path) + \
+		" -epsg %s " % (epsg) + \
+		" -o %s" % (outfilename)
+
+	stdout, stderr = runner(cmd, False)
+	fileutils.deletefile(path)
+
+	return outfilename
+
 
 ###############################################################################
 def las2las(filename, odir, zcorrection=0, suffix="_Z"):
