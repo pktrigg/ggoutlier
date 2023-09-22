@@ -21,17 +21,14 @@
 # improve shop file with surface point depth att
 # improve shop file with surface depth att
 # improve shop file with SIC approval attribute
-
-#todo##########################################
-#load point cloud file from ascii fileutils
 # load a tif file
 # write results to laz
 # allow user to specify threshold by percentage
 # allow user to specify threshold by delta Z
 
-# if ALL subset records are flagged then the percentage is too low and we need to start again with a higher percentage
-# the surface is created from the point cloud so this is a chicken and egg situaton.  
-# we should probably run a quick filter of say 0.1% to clean out any crazy outliers which will screw the surface
+#todo##########################################
+#load point cloud file from ascii fileutils
+#improve how we handle edge of data issues. most of outliers are edge of survey area.  This is bad
 
 import os.path
 from argparse import ArgumentParser
@@ -65,7 +62,7 @@ def main():
 	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	parser.add_argument('-n', 		action='store', 		default="20",		dest='numpoints', 		help='ADVANCED:Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:20]')
 	parser.add_argument('-p', 		action='store', 		default="0.1",		dest='outlierpercentage',help='ADVANCED:Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. [Default:0.1]')
-	parser.add_argument('-z', 		action='store', 		default="1.0",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:1.0]')
+	parser.add_argument('-z', 		action='store', 		default="10",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
 	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + msg + ' [Default:order1a]' )
 	parser.add_argument('-debug', 	action='store_true', 	default=False,		dest='debug',			help='DEbug to write LAZ files and other supproting file.s  takes some additional time!,e.g. -debug [deafult:false]')
 	
@@ -214,12 +211,30 @@ def process(filename, args):
 			#the outlier IDX is the sequential number used in conjunction with the beam quality results.  Its not great but thats how the open3d cleaning works
 			outlieridx = outlieridx + 1
 			depth = pt[2]
-			depths = []
-			# for val in rio.sample([(pt[0], pt[1])]): depths.append(val[0])
-			# griddepth = depths[0]
+			#check if at edge of data by building a mask for regional and see if anything is an empty cell...			
+			isedge=False
+			radius = 2
+			mask = []
+			for x in range(-radius, radius):
+				for y in range(-radius, radius):
+					mask.append([pt[0]+radius, pt[1]+radius])
+			for val in rio.sample(mask): 
+				if val == rio.nodatavals[0]:
+					griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
+					tvu = standard.gettvatdept(griddepth)
+					deltaz = abs(griddepth-depth)
+					pt = np.append(pt, [deltaz, tvu, griddepth])
+					confirmedinliers.append(pt)
+					#re-accept the point as it is actually in specification
+					log("EDGE %d" % (idx))
+					inlierindex.append(idx)
+					isedge=True
+					break
+			if isedge==True:
+				continue
+			#check the depth against the regional surface and the IHO standarON			griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
 			griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
 			tvu = standard.gettvatdept(griddepth)
-
 			deltaz = abs(griddepth-depth)
 			if griddepth == rio.nodatavals[0]:
 				#skip point if there is no raster surface value

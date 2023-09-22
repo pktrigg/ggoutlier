@@ -95,6 +95,12 @@ def reportsummary(myreport, GGFindOutlierlogfilename):
 			line = line.lstrip()
 			line = line.rstrip()
 
+			# if "INFO:root:Configuration:" in line:
+			# 	line = line.replace("INFO:root:Configuration:", "")
+			# 	line = line.strip()
+			# 	metrics.append(["Configuration", line.replace(" ", )])
+			# 	continue
+
 			if "INFO:root:Output Folder:" in line:
 				line = line.replace("INFO:root:Output Folder:", "")
 				line = line.strip()
