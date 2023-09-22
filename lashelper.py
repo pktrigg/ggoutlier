@@ -240,6 +240,33 @@ def lasgrid4(filename, outfilename, resolution, epsg='31984'):
 	return outfilename
 
 ###############################################################################
+def lasgridsubcircle(filename, outfilename, resolution, epsg='31984', subcircle=1):
+	'''use lasgrid to grid a file efficiently at the user specified resolution'''
+
+	odirlog = makedirs(os.path.dirname(filename))	
+
+	root = os.path.splitext(os.path.basename(filename))[0]
+
+	if len(outfilename) == 0:
+		outfilename = os.path.join(os.path.dirname(filename), root + ".tif")
+		outfilename = outfilename.replace('\\','/')
+	else:
+		outfilename = outfilename.replace('\\','/')
+
+	cmd = "lasgrid64.exe" + \
+		" -i %s" % (filename) + \
+		" -epsg %s" % (epsg) + \
+		" -mem %s" % (str(1900)) + \
+		" -step %s" % (str(resolution)) + \
+		" -subcircle %s" % (str(subcircle)) + \
+		" -%s" % ('average') + \
+		" -o %s" % (outfilename)
+
+	stdout, stderr = runner(cmd, False)
+
+	return outfilename
+
+###############################################################################
 def blast(srcfolder, dstfolder, filespec, resolution, outfilename, gridtype="hillshade", kill="3", outtype=".laz", RECT=None, epsg='31984'):
 	'''make a slope raster file for QC purposes'''
 
@@ -911,9 +938,8 @@ def las2lasEPSG(filename, odir="", epsg="4326"):
 	# outfilename = os.path.join(os.path.dirname(filename), root + "_EPSG_" + epsg + ".laz")
 	outfilename = outfilename.replace('\\','/')
 
-	with tempfile.TemporaryDirectory() as tmp:
-		path = os.path.join(tmp, 'tmp')
-	# use path
+	prefix = str(uuid.uuid1())
+	path = os.path.join(os.path.dirname(filename), prefix + ".laz")
 	fileutils.copyfile(filename, path)
 
 	cmd = "las2las64.exe" + \
