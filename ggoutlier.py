@@ -1,4 +1,4 @@
-#name:		  	ggfindoutlier
+#name:		  	GGOutlier
 #created:		August 2023
 #by:			paul.kennedy@guardiangeomatics.com
 #description:   python module to read a point cloud or raster file of depths, identify outliers, write out points to a shap or laz file for further QC
@@ -25,10 +25,13 @@
 # write results to laz
 # allow user to specify threshold by percentage
 # allow user to specify threshold by delta Z
+#improve how we handle edge of data issues. most of outliers are edge of survey area.
+#reduce marker size in pdf report
+#improve metrics in pdf report
+#improve pdf report to show the regional surface
 
 #todo##########################################
 #load point cloud file from ascii fileutils
-#improve how we handle edge of data issues. most of outliers are edge of survey area.  This is bad
 
 import os.path
 from argparse import ArgumentParser
@@ -61,8 +64,9 @@ def main():
 	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='Input filename/folder to process.')
 	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	parser.add_argument('-n', 		action='store', 		default="20",		dest='numpoints', 		help='ADVANCED:Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:20]')
-	parser.add_argument('-p', 		action='store', 		default="0.1",		dest='outlierpercentage',help='ADVANCED:Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. [Default:0.1]')
+	parser.add_argument('-p', 		action='store', 		default="5",		dest='outlierpercentage',help='ADVANCED:Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. Maximum is 5% [Default:5]')
 	parser.add_argument('-z', 		action='store', 		default="10",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
+	parser.add_argument('-smooth', 	action='store', 		default="5",		dest='smooth',			help='ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neghbours can be calculated. [Default:5]')
 	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + msg + ' [Default:order1a]' )
 	parser.add_argument('-debug', 	action='store_true', 	default=False,		dest='debug',			help='DEbug to write LAZ files and other supproting file.s  takes some additional time!,e.g. -debug [deafult:false]')
 	
@@ -86,24 +90,27 @@ def main():
 
 	#make an output folder
 	if len(args.odir) == 0:
-		args.odir = str("GGFindOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
+		args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
 	odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 	makedirs(odir)
 
-	logfilename = os.path.join(odir,"ggfindoutlier_log.txt").replace('\\','/')
+	logfilename = os.path.join(odir,"GGOutlier_log.txt").replace('\\','/')
 	logging.basicConfig(filename = logfilename, level=logging.INFO)
 	log("Configuration: %s" % (str(args)))
 	log("Output Folder: %s" % (odir))
-
+	log("GGOutlier Version: 1.01")
+	log("GGOutlier started at: %s" % (datetime.now()))
+	log("Username: %s" %(os.getlogin()))
+	log("Computer: %s" %(os.environ['COMPUTERNAME']))
+	log("Number of CPUs %d" %(mp.cpu_count()))	
+	
+	args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
 	for file in matches:
 		process(file, args)
-		# try:
-		pdfdocument.ggfindoutlierreport(logfilename, odir)
-		# except:			
-			# log("Warning: GGfindOutlier report cannot be created.")
-
-	log("QC Duration: %.3f seconds" % (time.time() - start_time))
+		log("QC Duration:%.3fs" % (time.time() - start_time))
+		pdfdocument.GGOutlierreport(logfilename, odir)
+		log("Report Complete")
 
 ############################################################
 def process(filename, args):
@@ -111,9 +118,10 @@ def process(filename, args):
 
 	log("Processing file: %s" % (filename))
 
-	log("Cleaning to IHO Standard: %s" % (args.standard))
+	log("QC to Survey Standard: %s" % (args.standard))
 	iho = ggmbesstandard.sp44()
 	standard = iho.loadstandard(args.standard)
+	log("Survey_Standard: %s" %(standard.details()))
 
 	#load the python proj projection object library if the user has requested it
 	geo = geodetic.geodesy(args.epsg)
@@ -154,22 +162,23 @@ def process(filename, args):
 	beamcountarray = np.arange(0, len(pcd.points))  # This will populate 'counter' with values 1, 2, 3
 
 	#PERCENTAGE PASSMARK
-	log("Understanding your signal to noise levels...")
+	log("Learning about your signal to noise levels...")
 	start_time = time.time() # time the process
 	low = 0
-	high = 100
+	high = 1000
 	TARGET = float(args.outlierpercentage)
 	NUMPOINTS = max(int(args.numpoints),1)
 	#MACHINE LEARNING TO DETERMINE CORRECT LEVEL OF FILTER...
 	pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, low, high, TARGET, NUMPOINTS)
 
-	log ("Points accepted by machine learning: %.2f" % (len(inlier_cloud.points)))
-	log ("Points tagged for further evaluation: %.2f" % (len(outlier_cloud.points)))
+	log ("Points accepted by machine learning: %d" % (len(inlier_cloud.points)))
+	log ("Points tagged for further evaluation: %d" % (len(outlier_cloud.points)))
 	# inliers = np.asarray(inlier_cloud.points)
 	outliers = np.asarray(outlier_cloud.points)
 	# inliers[:,2] /= ZSCALE
 	outliers[:,2] /= ZSCALE
-	log("Clean Duration: %.3f seconds" % (time.time() - start_time)) # log the processing time. It is handy to keep an eye on processing performance.
+	#   log("QC Duration: %.3fs" % (time.time() - start_time))
+	# log("QC Duration: %.3fseconds" % (time.time() - start_time)) # log the processing time. It is handy to keep an eye on processing performance.
 	########
 
 	#we need 1 list of ALL beams which are either accepted or rejected.
@@ -188,7 +197,7 @@ def process(filename, args):
 	#we need to make a regional grid which uses the nearest neighbours, so make this 3 times larger than the source grid.  this means 1 pixel each side of the current point
 	# regionalfilename = lashelper.lasgridsubcircle( fname, outfilename, resolution= SRCRESOLUTION/2, epsg=args.epsg, subcircle=SRCRESOLUTION)
 	regionalfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_RegionalDepth.tif")
-	fname = cloud2tif.smoothtif(filename, regionalfilename, smooth=5)
+	fname = cloud2tif.smoothtif(filename, regionalfilename, smooth=int(args.smooth))
 	log ("Created REGIONAL TIF file for IHO validation: %s " % (fname))
 
 	if args.debug:
@@ -211,35 +220,39 @@ def process(filename, args):
 			#the outlier IDX is the sequential number used in conjunction with the beam quality results.  Its not great but thats how the open3d cleaning works
 			outlieridx = outlieridx + 1
 			depth = pt[2]
-			#check if at edge of data by building a mask for regional and see if anything is an empty cell...			
+			# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
 			isedge=False
-			radius = 2
+			radius = 2 #the median filter is set to 5 so we use 2 each side of central point
 			mask = []
 			for x in range(-radius, radius):
 				for y in range(-radius, radius):
-					mask.append([pt[0]+radius, pt[1]+radius])
+					mask.append([pt[0] + (x * SRCRESOLUTION), pt[1] + (y * SRCRESOLUTION)])
 			for val in rio.sample(mask): 
 				if val == rio.nodatavals[0]:
 					griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
-					tvu = standard.gettvatdept(griddepth)
+					tvu = standard.gettvuat(griddepth)
 					deltaz = abs(griddepth-depth)
 					pt = np.append(pt, [deltaz, tvu, griddepth])
 					confirmedinliers.append(pt)
 					#re-accept the point as it is actually in specification
-					log("EDGE %d" % (idx))
 					inlierindex.append(idx)
 					isedge=True
 					break
+
 			if isedge==True:
 				continue
-			#check the depth against the regional surface and the IHO standarON			griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
+			#check the depth against the regional surface and the IHO standarON
 			griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
-			tvu = standard.gettvatdept(griddepth)
+			tvu = standard.gettvuat(griddepth)
 			deltaz = abs(griddepth-depth)
 			if griddepth == rio.nodatavals[0]:
 				#skip point if there is no raster surface value
+				pt = np.append(pt, [deltaz, tvu, griddepth])
+				confirmedinliers.append(pt)
+				#re-accept the point as it is actually in specification
+				inlierindex.append(idx)
 				continue
-			if deltaz > tvu:
+			if deltaz >= tvu:
 				pt = np.append(pt, [deltaz, tvu, griddepth])
 				confirmedoutliers.append(pt)
 			else:
@@ -247,7 +260,6 @@ def process(filename, args):
 				confirmedinliers.append(pt)
 				#re-accept the point as it is actually in specification
 				inlierindex.append(idx)
-				# log ("re-accept")
 
 	#write the outliers to a point SHAPE file
 	shpfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".shp")
@@ -264,9 +276,9 @@ def process(filename, args):
 		w.record(pt[3], pt[4], pt[2], pt[5])
 	w.close()
 
+	# q: what is a median filter and how does it work?
+	# a: https://www.youtube.com/watch?v=VvQ2mo3EXHk
 	#we need 1 list of ALL beams which are either accepted or rejected.  This is now a revised list folowing Standard validation
-	# beamqualityresult = np.isin(beamcountarray, inlierindex)
-
 	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
 	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
 	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
@@ -299,8 +311,8 @@ def process(filename, args):
 	fname = lashelper.txt2las(outfile, epsg=args.epsg)
 	log ("Created LAZ file of outliers: %s " % (fname))
 
-	# msg = "GGFindOutlier complete. outlier_cloud.points
-	log("Cleaning complete at: %s" % (datetime.now()))
+	# msg = "GGOutlier complete. outlier_cloud.points
+	log("QC complete at: %s" % (datetime.now()))
 	return shpfilename
 
 ##################################################################################
@@ -323,13 +335,11 @@ def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	currentfilter = (high+low)/2
 
 	cl, inlierindex = pcd.remove_statistical_outlier(nb_neighbors=NUMPOINTS,	std_ratio=currentfilter)
-
 	# cl, inlierindex = pcd.remove_radius_outlier(nb_points = NUMPOINTS, radius = currentfilter)
 
 	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
 	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
 	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
-	# log ("Current filter Nearest Neighbours %d" % (NUMPOINTS))
 	log ("Current filter StdDev %.2f" % (currentfilter))
 	log ("Percentage Rejection %.2f" % (percentage))
 
@@ -345,45 +355,6 @@ def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, currentfilter, high, TARGET, NUMPOINTS)
 
 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
-
-##################################################################################
-# def cleanoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
-# 	'''clean outliers using binary chop to control how many points we reject'''
-# 	'''use spherical radius to identify outliers and clusters'''
-# 	'''binary chop will aim for target percentage of data deleted rather than a fixed filter level'''
-# 	'''this way the filter adapts to the data quality'''
-# 	'''TARGET is the percentage of the input points we are looking to reject'''
-# 	'''NUMPOINTS is the number of nearest neighbours within the spherical radius which is the threshold we use to consider a point an outlier.'''
-# 	'''If a point has no friends, then he is an outlier'''
-# 	'''if a point has moew the NUMPOINTS in the spherical radius then he is an inlier, ie good'''
-
-# 	#outlier removal by radius
-# 	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
-# 	# http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
-	
-# 	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
-# 	#ind: The index of the points which are NOT outliers
-# 	currentfilter = (high+low)/2
-# 	cl, inlierindex = pcd.remove_radius_outlier(nb_points = NUMPOINTS, radius = currentfilter)
-
-# 	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
-# 	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
-# 	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
-# 	log ("Current filter radius %.2f" % (currentfilter))
-# 	log ("Percentage rejection %.2f" % (percentage))
-
-# 	decimals = len(str(TARGET).split(".")[1])
-# 	percentage = round(percentage, decimals)
-# 	if percentage < TARGET:
-# 		#we have rejected too few, so run again setting the low to the pervious value
-# 		log ("Filter level increasing to reject a few more points...")
-# 		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier(pcd, low, currentfilter, TARGET, NUMPOINTS)
-# 	elif percentage > TARGET:
-# 		#we have rejected too few, so run again setting the low to the pervious value
-# 		log ("Filter level decreasing to reject a few less points...")
-# 		pcd, inlier_cloud, outlier_cloud, inlierindex = cleanoutlier(pcd, currentfilter, high, TARGET, NUMPOINTS)
-
-# 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
 ###############################################################################
 def update_progress(job_title, progress):
@@ -412,7 +383,6 @@ def	log(msg, error = False, printmsg=True):
 ###############################################################################
 if __name__ == "__main__":
 		main()
-		# exit()
 
 	########################v#######################################################
 	# log("Statistical outlier removal")

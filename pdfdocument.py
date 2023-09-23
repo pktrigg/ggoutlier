@@ -58,6 +58,14 @@ def bathyqcreport(logfilename, resultfolder):
 
 
 ####################################################################################################
+def collectinformation(line, msgid, username, metrics):
+	if msgid in line:
+		line = line.replace(msgid,"")
+		line = line.strip()
+		metrics.append([username, line])
+	return line
+
+####################################################################################################
 def bathyqcreportsummary(myreport, logfilename):
 
 	if not os.path.exists(logfilename):
@@ -73,20 +81,20 @@ def bathyqcreportsummary(myreport, logfilename):
 ####################################################################################################
 ####################################################################################################
 ####################################################################################################
-def reportsummary(myreport, GGFindOutlierlogfilename):
+def reportsummary(myreport, GGOutlierlogfilename):
 
-	if not os.path.exists(GGFindOutlierlogfilename):
+	if not os.path.exists(GGOutlierlogfilename):
 		return
 
 	#process the log file
 	surveylines = []
-	GGFindOutlierduration = ""
+	GGOutlierduration = ""
 	surveyline = None
 	status = []
 	metrics = []
-	metrics.append (["Inputs_Summary_Log", GGFindOutlierlogfilename])
+	metrics.append (["Inputs_Summary_Log", GGOutlierlogfilename])
 
-	with open(GGFindOutlierlogfilename) as fp:
+	with open(GGOutlierlogfilename) as fp:
 		for line in fp:
 			line = line.replace("  ", " ")
 			line = line.replace("  ", " ")
@@ -95,91 +103,38 @@ def reportsummary(myreport, GGFindOutlierlogfilename):
 			line = line.lstrip()
 			line = line.rstrip()
 
-			# if "INFO:root:Configuration:" in line:
-			# 	line = line.replace("INFO:root:Configuration:", "")
-			# 	line = line.strip()
-			# 	metrics.append(["Configuration", line.replace(" ", )])
-			# 	continue
+			collectinformation(line, "INFO:root:Username:", "Username", metrics)
+			collectinformation(line, "INFO:root:Computer:", "Computer", metrics)
+			collectinformation(line, "INFO:root:GGOutlier Version:", "QC_Version", metrics)
+			collectinformation(line, "INFO:root:Writing outliers to:", "Outlier_Shape_Filename", metrics)
+			collectinformation(line, "INFO:root:Created LAZ file of outliers:", "Outlier_LAZ_Filename", metrics)
+			collectinformation(line, "INFO:root:Processing file:", "Input_Filename", metrics)
+			collectinformation(line, "INFO:root:QC Duration:", "GGOutlier_Duration", metrics)
+			collectinformation(line, "INFO:root:Depths loaded for quality control:", "Depths_Loaded_for_QC", metrics)
+			collectinformation(line, "INFO:root:Points tagged for further evaluation:", "Machine_Learning_Candidates", metrics)	
+			collectinformation(line, "INFO:root:Points outside specification:", "**Final_Points_Outside_Standard**", metrics)
+			collectinformation(line, "INFO:root:QC to Survey Standard:", "Required_Survey_Standard", metrics)
+			collectinformation(line, "INFO:root:Survey_Standard:", "Survey_Standard_Details", metrics)
+			collectinformation(line, "INFO:root:EPSGCode for geodetic conversions:", "EPSG_Code", metrics)
 
-			if "INFO:root:Output Folder:" in line:
-				line = line.replace("INFO:root:Output Folder:", "")
-				line = line.strip()
-				metrics.append(["Output_Folder", line])
-				continue
-
-			if "root:Writing outliers to:" in line:
-				line = line.replace("INFO:root:Writing outliers to:", "")
-				line = line.strip()
-				metrics.append(["Outlier_Shape_Filename", line])
-				continue
-
-			if "root:Created TXT file of outliers:" in line:
-				line = line.replace("INFO:root:Created TXT file of outliers:", "")
-				line = line.strip()
-				metrics.append(["Outlier_TXT_Filename", line])
-				outliertxtfilename = line
-				continue
-
-			if "root:Created LAZ file of outliers:" in line:
-				line = line.replace("INFO:root:Created LAZ file of outliers:", "")
-				line = line.strip()
-				metrics.append(["Created_LAZ_file_of_outliers", line])
-				continue
-
-			if "root:Processing file:" in line:
-				line = line.replace("INFO:root:Processing file:", "")
-				line = line.strip()
-				metrics.append(["Input_Filename", line])
-				continue
-
-			if "QC Duration" in line:
-				line = line.replace("INFO:root:QC Duration:", "")
-				line = line.strip()
-				metrics.append(["GGFindOutlier_Duration" , line])
-				continue
-
-			if "root:Depths loaded for quality control" in line:
-				line = line.replace("INFO:root:Depths loaded for quality control:", "")
-				line = line.strip()
-				metrics.append(["Depths_Loaded_for_QC", line])
-				continue
-
-			if "INFO:root:Points tagged for further evaluation:" in line:
-				line = line.replace("INFO:root:Points tagged for further evaluation:", "")
-				line = line.strip()
-				metrics.append(["Points_tagged_for_further_evaluation_by_machine_learning", line])
-				continue
-
-			if "INFO:root:Points outside specification:" in line:
-				line = line.replace("INFO:root:Points outside specification:", "")
-				line = line.strip()
-				metrics.append(["Points_Outside_Standard", line])
-				continue
-
-			if "INFO:root:Cleaning to IHO Standard:" in line:
-				line = line.replace("INFO:root:Cleaning to IHO Standard:", "")
-				line = line.strip()
-				metrics.append(["Required_QC_Standard", line])
-				continue
-
-			if "INFO:root:EPSGCode for geodetic conversions:" in line:
-				line = line.replace("INFO:root:EPSGCode for geodetic conversions:", "")
-				line = line.strip()
-				metrics.append(["EPSG_Code", line])
-				continue
-
-			if "INFO:root:Created REGIONAL TIF file for IHO validation:" in line:
-				line = line.replace("INFO:root:Created REGIONAL TIF file for IHO validation:", "")
+			msg = "INFO:root:Created REGIONAL TIF file for IHO validation:"
+			if msg in line:
+				line = line.replace(msg,"")
 				line = line.strip()
 				metrics.append(["Regional_TIF", line])
 				regionalfilename = line
-
-				continue
+		
+			msg = "INFO:root:Created TXT file of outliers:"
+			if msg in line:
+				line = line.replace(msg,"")
+				line = line.strip()
+				metrics.append(["Outlier_TXT_Filename", line])
+				outliertxtfilename = line
 
 	totalpoints = 0
 
 	#write out the per line stats...
-	reportfilename = GGFindOutlierlogfilename + "_adjustment.txt"
+	reportfilename = GGOutlierlogfilename + "_adjustment.txt"
 	f = open(reportfilename, 'w')
 	f.write("Item Value\n")
 	for rec in metrics:
@@ -187,22 +142,22 @@ def reportsummary(myreport, GGFindOutlierlogfilename):
 	f.close()
 
 	myreport.addspace()
-	myreport.addtitle("GGFindOutlier Summary of Results")
+	myreport.addtitle("GGOutlier Summary of Results")
 	myreport.addspace()
 	myreport.addtable(reportfilename)
 
-	myreport.addtitle("GGFindOutlier Principles")
+	myreport.addtitle("GGOutlier Principles")
 	myreport.addspace()
 	myreport.addspace()
 
-	myreport.addparagraph("GGFindOutlier is a tool developed by Guardian Geomatics to QC processed a multibeam bathymetry surface, and validate that surface against a standard such as IHO SP44 or HIPP standards.  The principle is similar method to a traditional review by a surveyor-in-charge proces in which the SIC would review the depth surface by identifying outliers relative to its nearest neighours.")
+	myreport.addparagraph("GGOutlier is a tool developed by Guardian Geomatics to QC processed a multibeam bathymetry surface, and validate that surface against a standard such as IHO SP44 or HIPP standards.  The principle is similar method to a traditional review by a surveyor-in-charge proces in which the SIC would review the depth surface by identifying outliers relative to its nearest neighours.")
 
-	myreport.addparagraph("GGFindOutlier inputs are very simple. A depth surface (a floating point TIF file) and a IHO SP44 specification surch as 'order1a', 'specialorder'.")
+	myreport.addparagraph("GGOutlier inputs are very simple. A depth surface (a floating point TIF file) and a IHO SP44 specification surch as 'order1a', 'specialorder'.")
 	myreport.addparagraph("The tif file of depths are converted to point clouds. Machine learning is then used to identify the signal to noise ratio in the data.  Filters are autmmatically refined to idetnify the 'most noisy' points in the file. for each candidate, the nearest neighbours are used to compute a 'regional depth surface' using a medain value of the surrouding depths.  The differenc in candiate-regionaldepth is then assessed against the TVU for that depth and either flagged as an outlier or accepted as within specification. These are called outliers.")
 	myreport.addparagraph("Inliers are points which do meet the required specification for allowable total vertical uncertainty.")
 	myreport.addparagraph("Outliers are points which do NOT meet the required specification for allowable total vertical uncertainty.")
 	myreport.addparagraph("Outliers are saved to a point cloud file and a shape file.  The shape file contains the depth, the regional depth, the AllowableTVU, the delta depth and a field for Approval by SIC.")
-	myreport.addparagraph("GGFindOutlier will generate a QC report (this document) in order to enable rapid assessment of results.")
+	myreport.addparagraph("GGOutlier will generate a QC report (this document) in order to enable rapid assessment of results.")
 	myreport.addspace()
 	myreport.addtitle("Surveyor In Charge Role")
 	myreport.addspace()
@@ -212,19 +167,20 @@ def reportsummary(myreport, GGFindOutlierlogfilename):
 	myreport.addtitle("Data Processor Role")
 	myreport.addspace()
 	myreport.addparagraph("The shape file can be loaded into the processing software (ag CARIS, Qimera) and used to guide the data processor to revisit the ungridded raw data points and re-evaluate underlying data and edit if required.")
-	myreport.addparagraph("If additional edits are required, the DP shall regenerate the depth surface and rerun GGFindOutlier.")
+	myreport.addparagraph("If additional edits are required, the DP shall regenerate the depth surface and rerun GGOutlier.")
 	myreport.addspace()
 	myreport.addtitle("Client Representative Role")
 	myreport.addspace()
-	myreport.addparagraph("The shape file will be delivered as part of a survey reort. This can be used by the client representative to gain confidence all outliers have been reviewed by the SIC and there are no additional outliers in the depth surface..")
+	myreport.addparagraph("The shape file will be delivered as part of a survey reort. This can be used by the client representative to gain confidence all outliers have been reviewed by the SIC and there are no additional outliers in the depth surface.")
 	myreport.addspace()
 
-	myreport.addparagraph("Below is an example of how to consume the results from GGFindOutlier using GIS to analyse outliers which do not meet specification.")
+	myreport.addparagraph("Below is an example of how to consume the results from GGOutlier using GIS to analyse outliers which do not meet specification.")
 	myreport.addspace()
 	myreport.addspace()
 	myreport.addspace()
-
-	myreport.addimage("ggfindoutliergis.png", 450)
+	
+	image = os.path.join(os.path.dirname(__file__), "GGOutliergis.png")
+	myreport.addimage(image, 450)
 
 	plt.ioff()
 	dtm_dataset = rio.open(regionalfilename)
@@ -296,7 +252,7 @@ def reportsummary(myreport, GGFindOutlierlogfilename):
 		count += 1
 		point = line.strip().split(',')
 		points.append(point)
-		plt.plot(float(point[0]), float(point[1]), marker="x", markersize=10, markeredgecolor="red", markerfacecolor="green")
+		plt.plot(float(point[0]), float(point[1]), marker="x", markersize=2.5, markeredgewidth=0.25, markeredgecolor="red", markerfacecolor="green")
 
 	plt.grid()
 	# plt.show()
@@ -304,7 +260,7 @@ def reportsummary(myreport, GGFindOutlierlogfilename):
 	# plt.axis('on')
 	# plt.show()
 	overviewimagefilename = regionalfilename + "_hillshade.png"
-	plt.savefig(overviewimagefilename, bbox_inches='tight', dpi=320)
+	plt.savefig(overviewimagefilename, bbox_inches='tight', dpi=640)
 	
 	myreport.addspace()
 	myreport.addspace()
@@ -321,18 +277,18 @@ def reportsummary(myreport, GGFindOutlierlogfilename):
 	return
 
 ####################################################################################################
-def ggfindoutlierreport(GGFindOutlierlogfilename, resultfolder):
+def GGOutlierreport(GGOutlierlogfilename, resultfolder):
 	'''create an infinitpos QC report into PDF'''
 	if not os.path.exists(resultfolder):
 		return
 
-	outfilename = os.path.join(resultfolder, "GGFindOutlierQCReport.pdf")
+	outfilename = os.path.join(resultfolder, "GGOutlierQCReport.pdf")
 	outfilename = fileutils.createOutputFileName(outfilename)
-	myreport = REPORT("GGFindOutlier QCReport", outfilename)
+	myreport = REPORT("GGOutlier QCReport", outfilename)
 
-	#parse the GGFindOutlier log file and make a summary table
-	if os.path.exists(GGFindOutlierlogfilename):
-		reportsummary(myreport, GGFindOutlierlogfilename )
+	#parse the GGOutlier log file and make a summary table
+	if os.path.exists(GGOutlierlogfilename):
+		reportsummary(myreport, GGOutlierlogfilename )
 
 	myreport.save()
 	myreport.viewpdf()
@@ -362,7 +318,7 @@ def findcmap(folder, text):
 # ###################################################################################################
 def main():
 
-	parser = ArgumentParser(description='\n * generate a PDF report from GGFindOutlier Process one or many mission folders using GGFindOutlier.')
+	parser = ArgumentParser(description='\n * generate a PDF report from GGOutlier Process one or many mission folders using GGOutlier.')
 	parser.add_argument('-i', 			dest='inputfolder', action='store', 		default='.',			help='the root folder to find one more more mission folders. Pease refer to procedure for the mission folder layout - e.g. c:/mysurveyarea')
 	
 	args = parser.parse_args()
@@ -371,8 +327,8 @@ def main():
 		args.inputfolder = os.getcwd()
 
 	resultfolder = os.path.join(args.inputfolder, "8_cor").replace('\\','/')
-	GGFindOutlierlogfilename = os.path.join(os.path.dirname(args.inputfolder), "GGFindOutlier.log").replace('\\','/')
-	ggfindoutlierreport(GGFindOutlierlogfilename, resultfolder)
+	GGOutlierlogfilename = os.path.join(os.path.dirname(args.inputfolder), "GGOutlier.log").replace('\\','/')
+	GGOutlierreport(GGOutlierlogfilename, resultfolder)
 
 	# outfilename = "c:/temp/myfile.pdf"
 	# outfilename = fileutils.createOutputFileName(outfilename)
@@ -503,7 +459,7 @@ class REPORT:
 		# return Image(path, width=iw, height=ih)
 		return Image(path, width=width, height=height)
 
-		# lowable <Image at 0x2baa2bbd390 frame=normal filename=ggfindoutliergis.png>(1918 x 1032) too large on page 3 in frame 'normal'(439.27559055118115 x 671.716535433071*) of template 'header'
+		# lowable <Image at 0x2baa2bbd390 frame=normal filename=GGOutliergis.png>(1918 x 1032) too large on page 3 in frame 'normal'(439.27559055118115 x 671.716535433071*) of template 'header'
 
 ###################################################################################################
 	def compositeimage(self, filename, requiredwidth, legendfilename, legendwidth, outfilename):
@@ -975,7 +931,7 @@ class REPORT:
 # 	styleN = styles['Normal']
 # 	# styleH = styles['Heading1']
 
-# 	myreport = REPORT("GGFindOutlier QC Report %s" % (os.path.dirname(resultfolder)), outfilename)
+# 	myreport = REPORT("GGOutlier QC Report %s" % (os.path.dirname(resultfolder)), outfilename)
 
 # 	myreport.addparagraph("hello")
 # 	myreport.addparagraph("hello2")
@@ -1039,7 +995,7 @@ class REPORT:
 if __name__ == "__main__":
 
 	main()
-	# resultfolder = "E:/projects/GGFindOutlier/A14/IP_Result_20200725013252/8_cor"
-	# GGFindOutlierlogfilename = "E:/projects/GGFindOutlier/A14/GGFindOutlier.log"
+	# resultfolder = "E:/projects/GGOutlier/A14/IP_Result_20200725013252/8_cor"
+	# GGOutlierlogfilename = "E:/projects/GGOutlier/A14/GGOutlier.log"
 
-	# GGFindOutlierreport(GGFindOutlierlogfilename, resultfolder)
+	# GGOutlierreport(GGOutlierlogfilename, resultfolder)

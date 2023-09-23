@@ -8,7 +8,7 @@
 			"stopOnEntry": false,
 			"program": "${file}",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-i", "Y:/Subsea-Cloud/ggtools/kmallclean/tiff", "-n", "20", "-p", "0.1", "-z", "10", "-epsg", "32751"]
+			"args": ["-i", "Y:/Subsea-Cloud/ggtools/kmallclean/tiff", "-debug", "-n", "20", "-p", "10", "-z", "10", "-epsg", "32751"]
 		}
 	]
 }
