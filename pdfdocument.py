@@ -51,7 +51,7 @@ def bathyqcreport(logfilename, resultfolder):
 	outfilename = os.path.join(resultfolder, "BathyQCReport.pdf")
 	outfilename = fileutils.createOutputFileName(outfilename)
 	myreport = REPORT("BathyQC Report", outfilename)
-
+	log(filename, "BathyQCReport.pdf")
 	#parse the bathyqc log file and make a summary table
 	if os.path.exists(logfilename):
 		bathyqcreportsummary(myreport, logfilename )
@@ -146,32 +146,37 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	myreport.addspace()
 	myreport.addtable(reportfilename)
 
+	myreport.addtitle("What is an Outlier?")
+	myreport.addspace()
+	myreport.addparagraph("In bathymetry, an outlier typically refers to an isolated or anomalous depth measurement or feature on a seafloor depth map or chart. These outliers can be depths that are significantly different from the surrounding seafloor topography. Outliers might be caused by various factors such as errors in data collection, equipment malfunction, or unique geological features like wrecks, obstructions, seamounts or underwater volcanoes that stand out from the surrounding seabed. The scale of an outlier can be considerable. Identifying and understanding outliers in bathymetric data is important for accurate navigation, scientific research, and ocean exploration. Separating a feature from noise is a complex issue. The final decision comes down to the skill and experience of the Surveyor In Charge.")
+
 	myreport.addtitle("GGOutlier Principles")
 	myreport.addspace()
+
+	myreport.addparagraph("GGOutlier is a tool developed by Guardian Geomatics to Quality Control processed a multibeam bathymetry surface, and validate a procesed depth surface against a standard such as IHO SP44 or HIPP standards.  The principle is similar method to a traditional review by a surveyor-in-charge process in which the SIC would review the depth surface by identifying outliers relative to its nearest neighours.")
+
+	myreport.addparagraph("GGOutlier primary purpose is to positively, rigorously identify every depth which is considered an outlier relative to the required total vertical uncertainty at that location. This provides the SIC and client with full confidence that the quality of the depth surface meets the required specification.")
 	myreport.addspace()
-
-	myreport.addparagraph("GGOutlier is a tool developed by Guardian Geomatics to QC processed a multibeam bathymetry surface, and validate that surface against a standard such as IHO SP44 or HIPP standards.  The principle is similar method to a traditional review by a surveyor-in-charge proces in which the SIC would review the depth surface by identifying outliers relative to its nearest neighours.")
-
-	myreport.addparagraph("GGOutlier inputs are very simple. A depth surface (a floating point TIF file) and a IHO SP44 specification surch as 'order1a', 'specialorder'.")
+	myreport.addparagraph("GGOutlier inputs are very simple. A depth surface (a floating point TIF file) and a IHO SP44 specification such as 'order1a', 'specialorder'.")
 	myreport.addparagraph("The tif file of depths are converted to point clouds. Machine learning is then used to identify the signal to noise ratio in the data.  Filters are autmmatically refined to idetnify the 'most noisy' points in the file. for each candidate, the nearest neighbours are used to compute a 'regional depth surface' using a medain value of the surrouding depths.  The differenc in candiate-regionaldepth is then assessed against the TVU for that depth and either flagged as an outlier or accepted as within specification. These are called outliers.")
 	myreport.addparagraph("Inliers are points which do meet the required specification for allowable total vertical uncertainty.")
 	myreport.addparagraph("Outliers are points which do NOT meet the required specification for allowable total vertical uncertainty.")
-	myreport.addparagraph("Outliers are saved to a point cloud file and a shape file.  The shape file contains the depth, the regional depth, the AllowableTVU, the delta depth and a field for Approval by SIC.")
+	myreport.addparagraph("Outliers are saved to a point cloud file and a shape file. The shape file contains the processed Depth, the Regional Depth, the AllowableTVU, the Delta Depth (difference between Regional Depth and processed depth) and a field for Review/Approval by SIC.")
 	myreport.addparagraph("GGOutlier will generate a QC report (this document) in order to enable rapid assessment of results.")
 	myreport.addspace()
-	myreport.addtitle("Surveyor In Charge Role")
+	myreport.addtitle("Role of Surveyor In Charge")
 	myreport.addspace()
-	myreport.addparagraph("The SIC role is essential.  The resulting shape file idenifies all depths which do NOT meet the IHO specificaiton.  These are either outliers missed in processing or depths on stepp slopes which inherently will not meet TVU specification due to gridding resolution limitations. it is the role of the SIC to review these flagged outliers and confirm they are valid or need to be passed back to the data processors for additional cleaning.")
+	myreport.addparagraph("The SIC role is essential. The resulting shape file identifies all depths which do NOT meet the IHO specificaiton.  These are either outliers missed in processing or depths on stepp slopes which inherently will not meet TVU specification due to gridding resolution limitations. it is the role of the SIC to review these flagged outliers and confirm they are valid or need to be passed back to the data processors for additional cleaning.")
 	myreport.addparagraph("The SIC should edit the shape file attribute field to document each outlier has been reveiwed and approved.")
 	myreport.addspace()
-	myreport.addtitle("Data Processor Role")
+	myreport.addtitle("Role of Data Processor")
 	myreport.addspace()
 	myreport.addparagraph("The shape file can be loaded into the processing software (ag CARIS, Qimera) and used to guide the data processor to revisit the ungridded raw data points and re-evaluate underlying data and edit if required.")
 	myreport.addparagraph("If additional edits are required, the DP shall regenerate the depth surface and rerun GGOutlier.")
 	myreport.addspace()
-	myreport.addtitle("Client Representative Role")
+	myreport.addtitle("Role of Client Representative")
 	myreport.addspace()
-	myreport.addparagraph("The shape file will be delivered as part of a survey reort. This can be used by the client representative to gain confidence all outliers have been reviewed by the SIC and there are no additional outliers in the depth surface.")
+	myreport.addparagraph("The shape file and Regional Depth will be delivered as part of a survey report. This can be used by the client to gain confidence all outliers have been reviewed by the SIC and there are no additional outliers in the depth surface.")
 	myreport.addspace()
 
 	myreport.addparagraph("Below is an example of how to consume the results from GGOutlier using GIS to analyse outliers which do not meet specification.")

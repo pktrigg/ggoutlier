@@ -46,6 +46,8 @@ import rasterio
 import multiprocessing as mp
 import shapefile
 import logging
+import gc
+
 # locals
 import fileutils
 import geodetic
@@ -148,6 +150,17 @@ def process(filename, args):
 		NODATA = src.nodatavals[0]
 		SRCRESOLUTION = src.res[0]
 	
+		# Delete the array
+		del x
+		del y
+		del z
+		del band1
+		del xs
+		del ys
+		# Force garbage collection
+		gc.collect()
+		src.close()
+
 	log("Loading Point Cloud...")
 	pcd = o3d.geometry.PointCloud()
 	#remove the NODATA values
@@ -158,6 +171,18 @@ def process(filename, args):
 	xyz[:,2] /= ZSCALE
 	log("Depths loaded for quality control: %s" % (f'{len(pcd.points):,}'))
 
+	if args.debug:
+		#RAW report on RAW POINTS
+		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_RawPoints.txt")
+		log ("Creating raw laz file of input raw points: %s " % (outfile))
+		np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+		fname = lashelper.txt2las(outfile, epsg=args.epsg)
+		fileutils.deletefile(outfile)
+
+	del xyz
+	# Force garbage collection
+	gc.collect()
+
 	# Populate the 'counter' field automatically so we can track the points accepted/rejected status
 	beamcountarray = np.arange(0, len(pcd.points))  # This will populate 'counter' with values 1, 2, 3
 
@@ -165,7 +190,7 @@ def process(filename, args):
 	log("Learning about your signal to noise levels...")
 	start_time = time.time() # time the process
 	low = 0
-	high = 1000
+	high = 100
 	TARGET = float(args.outlierpercentage)
 	NUMPOINTS = max(int(args.numpoints),1)
 	#MACHINE LEARNING TO DETERMINE CORRECT LEVEL OF FILTER...
@@ -183,14 +208,6 @@ def process(filename, args):
 
 	#we need 1 list of ALL beams which are either accepted or rejected.
 	beamqualityresult = np.isin(beamcountarray, inlierindex)
-
-	if args.debug:
-		#RAW report on RAW POINTS
-		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_RawPoints.txt")
-		log ("Creating raw laz file of input raw points: %s " % (outfile))
-		np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-		fname = lashelper.txt2las(outfile, epsg=args.epsg)
-		fileutils.deletefile(outfile)
 
 	#RAW save as a tif file so we can easily view in GIS...
 	# outfilename = os.path.join(outfile + "_RegionalDepth.tif")
@@ -261,6 +278,8 @@ def process(filename, args):
 				#re-accept the point as it is actually in specification
 				inlierindex.append(idx)
 
+	rio.close()
+	
 	#write the outliers to a point SHAPE file
 	shpfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".shp")
 	w = shapefile.Writer(shpfilename)
