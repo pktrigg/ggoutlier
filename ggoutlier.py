@@ -381,7 +381,7 @@ def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	percentage = round(percentage, decimals)
 	if percentage < TARGET:
 		#we have rejected too few, so run again setting the low to the pervious value
-		log ("Filter level increasing to reject a few more points...")
+		log ("Filter level decreasing to reject a few more points...")
 		del inlier_cloud
 		del outlier_cloud
 		del cl 				
@@ -389,7 +389,7 @@ def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, low, currentfilter, TARGET, NUMPOINTS)
 	elif percentage > TARGET:
 		#we have rejected too few, so run again setting the low to the pervious value
-		log ("Filter level decreasing to reject a few less points...")
+		log ("Filter level increasing to reject a few less points...")
 		del inlier_cloud
 		del outlier_cloud
 		del cl 				
