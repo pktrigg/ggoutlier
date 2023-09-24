@@ -114,12 +114,9 @@ def main():
 	log("Computer: %s" %(os.environ['COMPUTERNAME']))
 	log("Number of CPUs %d" %(mp.cpu_count()))	
 
-	# Getting all memory using os.popen()
-	total_memory, used_memory, free_memory = map(
-		int, os.popen('free -t -m').readlines()[-1].split()[1:])
- 
-	# Memory usage
-	log("RAM memory % used:", round((used_memory/total_memory) * 100, 2))	
+	m = fileutils.MemoryStatusEx()
+	log('You have %0.2f GiB of RAM installed' % (m.totalPhys / (1024.)**3))
+
 
 	args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process

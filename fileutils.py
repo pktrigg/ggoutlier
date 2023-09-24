@@ -4,6 +4,22 @@ import fnmatch
 from glob import glob
 import shutil
 
+from ctypes import Structure, c_int32, c_uint64, sizeof, byref, windll
+
+class MemoryStatusEx(Structure):
+    _fields_ = [
+        ('length', c_int32),
+        ('memoryLoad', c_int32),
+        ('totalPhys', c_uint64),
+        ('availPhys', c_uint64),
+        ('totalPageFile', c_uint64),
+        ('availPageFile', c_uint64),
+        ('totalVirtual', c_uint64),
+        ('availVirtual', c_uint64),
+        ('availExtendedVirtual', c_uint64)]
+    def __init__(self):
+        self.length = sizeof(self)
+
 ###############################################################################
 def main(*opargs, **kwargs):
 	'''test rig for fileutils'''
