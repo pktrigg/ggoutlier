@@ -3,6 +3,13 @@
 #by:			paul.kennedy@guardiangeomatics.com
 #description:   python module to read a point cloud or raster file of depths, identify outliers, write out points to a shap or laz file for further QC
 
+#requirements
+# python 3.10 (must be 3.10)
+# pip install open3d
+# pip install reportlab
+# pip install pyproj
+# pip install pyshp
+# pip install scikit-learn
 #done##########################################
 # load a laz file
 # compute the cloud2raster MEAN
@@ -106,7 +113,14 @@ def main():
 	log("Username: %s" %(os.getlogin()))
 	log("Computer: %s" %(os.environ['COMPUTERNAME']))
 	log("Number of CPUs %d" %(mp.cpu_count()))	
-	
+
+	# Getting all memory using os.popen()
+	total_memory, used_memory, free_memory = map(
+		int, os.popen('free -t -m').readlines()[-1].split()[1:])
+ 
+	# Memory usage
+	log("RAM memory % used:", round((used_memory/total_memory) * 100, 2))	
+
 	args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
 	for file in matches:
@@ -345,6 +359,9 @@ def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
 	'''NUMPOINTS is the number of nearest neighbours within the spherical radius which is the threshold we use to consider a point an outlier.'''
 	'''If a point has no friends, then he is an outlier'''
 	'''if a point has moew the NUMPOINTS in the spherical radius then he is an inlier, ie good'''
+
+	# Force garbage collection
+	gc.collect()
 
 	#outlier removal by radius
 	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
