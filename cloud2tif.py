@@ -301,6 +301,6 @@ def	createprj(outfilename, epsg):
 
 	geo = geodetic.geodesy(epsg)
 	prj = open(outfilename, "w")
-	prj.write(geo.projection.srs)
+	prj.writelines(geo.projection.crs.to_wkt(version="WKT1_ESRI", pretty=True))
 	prj.close()
 ###############################################################################

@@ -39,7 +39,7 @@
 # improve pdf report to show the regional surface
 # move to specific git repo
 # spelling errors in report
-# write out a prj file alongside the shp file
+# write out a prj file alongside the shp file to ESRI standards
 
 # todo ##########################################
 # try to improve performance by replacing open3d with numpy
