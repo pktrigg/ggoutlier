@@ -287,8 +287,6 @@ def point2raster(outfilename, geo, pcd, resolution=1, bintype="mean", fill=False
 
 	return outfilename
 ###############################################################################
-
-###############################################################################
 def	log(msg, error = False, printmsg=True):
 		if printmsg:
 			print (msg)
@@ -296,3 +294,13 @@ def	log(msg, error = False, printmsg=True):
 			logging.info(msg)
 		else:
 			logging.error(msg)
+
+###############################################################################
+def	createprj(outfilename, epsg):
+	'''create the PRJ file'''
+
+	geo = geodetic.geodesy(epsg)
+	prj = open(outfilename, "w")
+	prj.write(geo.projection.srs)
+	prj.close()
+###############################################################################

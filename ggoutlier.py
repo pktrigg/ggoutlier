@@ -10,6 +10,7 @@
 # pip install pyproj
 # pip install pyshp
 # pip install scikit-learn
+
 #done##########################################
 # load a laz file
 # compute the cloud2raster MEAN
@@ -32,14 +33,16 @@
 # write results to laz
 # allow user to specify threshold by percentage
 # allow user to specify threshold by delta Z
-#improve how we handle edge of data issues. most of outliers are edge of survey area.
-#reduce marker size in pdf report
-#improve metrics in pdf report
-#improve pdf report to show the regional surface
-#move to specific git repo
+# improve how we handle edge of data issues. most of outliers are edge of survey area.
+# reduce marker size in pdf report
+# improve metrics in pdf report
+# improve pdf report to show the regional surface
+# move to specific git repo
+# spelling errors in report
+# write out a prj file alongside the shp file
 
-#todo##########################################
-#load point cloud file from ascii fileutils
+# todo ##########################################
+# try to improve performance by replacing open3d with numpy
 
 import os.path
 from argparse import ArgumentParser
@@ -70,7 +73,7 @@ def main():
 	msg = str(iho.getordernames())
 
 	parser = ArgumentParser(description='Read a floating point TIF file of depths and find all outliers exceeding a user specified threshold.')
-	parser.add_argument('-epsg', 	action='store', 		default="0",		dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 4326')
+	parser.add_argument('-epsg', 	action='store', 		default="0",		dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 32751')
 	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='Input filename/folder to process.')
 	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	parser.add_argument('-n', 		action='store', 		default="20",		dest='numpoints', 		help='ADVANCED:Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:20]')
@@ -78,7 +81,7 @@ def main():
 	parser.add_argument('-z', 		action='store', 		default="10",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
 	parser.add_argument('-smooth', 	action='store', 		default="5",		dest='smooth',			help='ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neghbours can be calculated. [Default:5]')
 	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + msg + ' [Default:order1a]' )
-	parser.add_argument('-debug', 	action='store_true', 	default=False,		dest='debug',			help='DEbug to write LAZ files and other supproting file.s  takes some additional time!,e.g. -debug [deafult:false]')
+	parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [deafult:false]')
 	
 	matches = []
 	args = parser.parse_args()
@@ -114,9 +117,8 @@ def main():
 	log("Computer: %s" %(os.environ['COMPUTERNAME']))
 	log("Number of CPUs %d" %(mp.cpu_count()))	
 
-	m = fileutils.MemoryStatusEx()
-	log('You have %0.2f GiB of RAM installed' % (m.totalPhys / (1024.)**3))
-
+	# m = fileutils.MemoryStatusEx()
+	# log('You have %0.2f GiB of RAM installed' % (m.totalPhys / (1024.)**3))
 
 	args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
@@ -183,7 +185,7 @@ def process(filename, args):
 	xyz[:,2] /= ZSCALE
 	log("Depths loaded for quality control: %s" % (f'{len(pcd.points):,}'))
 
-	if args.debug:
+	if args.verbose:
 		#RAW report on RAW POINTS
 		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_RawPoints.txt")
 		log ("Creating raw laz file of input raw points: %s " % (outfile))
@@ -229,7 +231,7 @@ def process(filename, args):
 	fname = cloud2tif.smoothtif(filename, regionalfilename, smooth=int(args.smooth))
 	log ("Created REGIONAL TIF file for IHO validation: %s " % (fname))
 
-	if args.debug:
+	if args.verbose:
 		outfilename = os.path.join(outfile + "_RegionalDepth.laz")
 		outfilename = lashelper.demzip2(regionalfilename, outfilename, nodata=-9999)
 		log ("Created REGIONAL LAZ file of input raw points: %s " % (filename))
@@ -306,6 +308,8 @@ def process(filename, args):
 		w.pointz(pt[0], pt[1], pt[2])
 		w.record(pt[3], pt[4], pt[2], pt[5])
 	w.close()
+	#write out the prj so it opens nicely in GIS
+	cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg)
 
 	# q: what is a median filter and how does it work?
 	# a: https://www.youtube.com/watch?v=VvQ2mo3EXHk
@@ -321,7 +325,7 @@ def process(filename, args):
 	inliers[:,2] /= ZSCALE
 	outliers[:,2] /= ZSCALE
 
-	if args.debug:
+	if args.verbose:
 		#INLIERS reporting...
 		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_InlierPoints" + ".txt")
 		np.savetxt(outfile, inliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')

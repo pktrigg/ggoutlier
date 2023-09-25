@@ -55,5 +55,5 @@ class standard:
 		return tvud
 	###############################################################################
 	def details(self):
-		msg = "Name:" + self.name + ",a:" + str(self.depthtvu_a) + ",b:" + str(self.depthtvu_b)
+		msg = "Name:" + self.name + ",a=" + str(self.depthtvu_a) + ",b=" + str(self.depthtvu_b) + ",TVU(d)=sqrt((a*a)+(b*d)^2)"
 		return msg
