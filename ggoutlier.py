@@ -81,8 +81,9 @@ def main():
 	parser.add_argument('-z', 		action='store', 		default="10",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
 	parser.add_argument('-smooth', 	action='store', 		default="5",		dest='smooth',			help='ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neghbours can be calculated. [Default:5]')
 	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + msg + ' [Default:order1a]' )
+	parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
 	parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [deafult:false]')
-	
+
 	matches = []
 	args = parser.parse_args()
 
@@ -123,6 +124,9 @@ def main():
 	args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
 	for file in matches:
+		#skip the file if its the same as the uncertianty file name
+		if os.path.basename(file) == os.path.basename(args.uncertaintyfilename):
+			continue
 		process(file, args)
 		log("QC Duration:%.3fs" % (time.time() - start_time))
 		pdfdocument.GGOutlierreport(logfilename, odir)
@@ -138,7 +142,13 @@ def process(filename, args):
 	iho = ggmbesstandard.sp44()
 	standard = iho.loadstandard(args.standard)
 	log("Survey_Standard: %s" %(standard.details()))
+	outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_TVU_Allowable.tif")
+	allowabletvufilename = standard.computeTVUSurface(filename, outfilename)
+	if os.path.exists(args.uncertaintyfilename):
+		outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_TVU_Barometer.tif")
+		standard.computeTVUBarometer(allowabletvufilename, args.uncertaintyfilename, outfilename)
 
+		log("TVU Surface created: %s" % (outfilename))
 	#load the python proj projection object library if the user has requested it
 	geo = geodetic.geodesy(args.epsg)
 	log("EPSGCode for geodetic conversions: %s" % (args.epsg))
@@ -238,6 +248,7 @@ def process(filename, args):
 
 	# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
 	# if they are close then we can re-accept them
+	log ("Validating candidates against TVU standard")
 	rio = rasterio.open(regionalfilename)
 	outlieridx = 0
 	confirmedoutliers = []
@@ -246,6 +257,7 @@ def process(filename, args):
 		if validity == True:
 			continue
 		else:
+			update_progress("Validating Candidates", idx/max(1,len(beamqualityresult)))
 			#the beam quality is false which means we need to get the next value from the outliers list
 			pt = outliers[outlieridx]
 			#the outlier IDX is the sequential number used in conjunction with the beam quality results.  Its not great but thats how the open3d cleaning works
