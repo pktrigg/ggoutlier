@@ -319,7 +319,7 @@ def process(filename, args):
 	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
 	log ("Points accepted: %s" % (f'{len(inlier_cloud.points):,}'))
 	log ("Points outside specification: %s" % (f'{len(outlier_cloud.points):,}'))
-	log ("Percentage outside specification: %.4f" % (percentage))
+	log ("Percentage outside specification: %.7f" % (percentage))
 	inliers = np.asarray(inlier_cloud.points)
 	outliers = np.asarray(outlier_cloud.points)
 	inliers[:,2] /= ZSCALE
