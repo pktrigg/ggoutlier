@@ -116,7 +116,8 @@ def reportsummary(myreport, GGOutlierlogfilename):
 			collectinformation(line, "INFO:root:QC to Survey Standard:", "Required_Survey_Standard", metrics)
 			collectinformation(line, "INFO:root:Survey_Standard:", "Survey_Standard_Details", metrics)
 			collectinformation(line, "INFO:root:EPSGCode for geodetic conversions:", "EPSG_Code", metrics)
-			collectinformation(line, "INFO:root:Percentage outside specification:", "Percoentage_Outside_Specification", metrics)
+			collectinformation(line, "INFO:root:Percentage outside specification:", "Percentage_Outside_Specification", metrics)
+			collectinformation(line, "INFO:root:Points checked:", "Points_Checked", metrics)
 
 			msg = "INFO:root:Created REGIONAL TIF file for IHO validation:"
 			if msg in line:

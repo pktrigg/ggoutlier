@@ -112,14 +112,11 @@ def main():
 	logging.basicConfig(filename = logfilename, level=logging.INFO)
 	log("Configuration: %s" % (str(args)))
 	log("Output Folder: %s" % (odir))
-	log("GGOutlier Version: 1.01")
+	log("GGOutlier Version: 2.01")
 	log("GGOutlier started at: %s" % (datetime.now()))
 	log("Username: %s" %(os.getlogin()))
 	log("Computer: %s" %(os.environ['COMPUTERNAME']))
 	log("Number of CPUs %d" %(mp.cpu_count()))	
-
-	# m = fileutils.MemoryStatusEx()
-	# log('You have %0.2f GiB of RAM installed' % (m.totalPhys / (1024.)**3))
 
 	args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
@@ -127,15 +124,264 @@ def main():
 		#skip the file if its the same as the uncertianty file name
 		if os.path.basename(file) == os.path.basename(args.uncertaintyfilename):
 			continue
-		process(file, args)
+
+		# args.odir = str("GGOutlier_%s_V1" % (time.strftime("%Y%m%d-%H%M%S")))
+		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
+		# makedirs(odir)
+		# process(file, args)
+
+		args.odir = str("GGOutlier_%s_V2" % (time.strftime("%Y%m%d-%H%M%S")))
+		odir = os.path.join(os.path.dirname(matches[0]), args.odir)
+		makedirs(odir)
+		process2(file, args)
+
 		log("QC Duration:%.3fs" % (time.time() - start_time))
+		log("Creating Report...")
 		pdfdocument.GGOutlierreport(logfilename, odir)
 		log("Report Complete")
 
 ############################################################
-def process(filename, args):
-	'''we will try to find outliers using machine learning to determine the typical noise level in the file and adapt filter accordingly so the user-requested noise level is obatined.'''
+# def process(filename, args):
+# 	'''we will try to find outliers using machine learning to determine the typical noise level in the file and adapt filter accordingly so the user-requested noise level is obatined.'''
 
+# 	depthfilename = filename
+# 	log("Processing file: %s" % (filename))
+
+# 	log("QC to Survey Standard: %s" % (args.standard))
+# 	iho = ggmbesstandard.sp44()
+# 	standard = iho.loadstandard(args.standard)
+# 	log("Survey_Standard: %s" %(standard.details()))
+# 	outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_TVU_Allowable.tif")
+# 	allowabletvufilename = standard.computeTVUSurface(filename, outfilename)
+# 	if os.path.exists(args.uncertaintyfilename):
+# 		outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_TVU_Barometer.tif")
+# 		standard.computeTVUBarometer(allowabletvufilename, args.uncertaintyfilename, outfilename)
+
+# 		log("TVU Surface created: %s" % (outfilename))
+# 	#load the python proj projection object library if the user has requested it
+# 	geo = geodetic.geodesy(args.epsg)
+# 	log("EPSGCode for geodetic conversions: %s" % (args.epsg))
+
+# 	pingcounter = 0
+# 	beamcountarray = 0
+# 	ZSCALE = float(args.zscale) # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
+
+# 	#load the tif file...	
+# 	with rasterio.open(filename) as src:
+# 		band1 = src.read(1)
+# 		z = band1.flatten()
+# 		print('Band1 has shape', band1.shape)
+# 		height = band1.shape[0]
+# 		width = band1.shape[1]
+# 		cols, rows = np.meshgrid(np.arange(width), np.arange(height))
+# 		xs, ys = rasterio.transform.xy(src.transform, rows, cols)
+# 		x = np.array(xs).flatten()
+# 		y = np.array(ys).flatten()
+# 		print('lons shape', x.shape)
+# 		# src._crs.wkt
+# 		xyz = np.stack((x,y,z), axis=1)
+# 		NODATA = src.nodatavals[0]
+# 		SRCRESOLUTION = src.res[0]
+	
+# 		# Delete the array
+# 		del x
+# 		del y
+# 		del z
+# 		del band1
+# 		del xs
+# 		del ys
+# 		# Force garbage collection
+# 		gc.collect()
+# 		src.close()
+
+# 	log("Loading Point Cloud...")
+# 	pcd = o3d.geometry.PointCloud()
+# 	#remove the NODATA values
+# 	xyz = xyz[np.all(xyz != NODATA, axis=1)]
+# 	#scale up the Z data so we accentuate the Z axis compared to the X,Y axis.  this is important as we use 
+# 	xyz[:,2] *= ZSCALE
+# 	pcd.points = o3d.utility.Vector3dVector(xyz)
+# 	xyz[:,2] /= ZSCALE
+# 	log("Depths loaded for quality control: %s" % (f'{len(pcd.points):,}'))
+
+# 	if args.verbose:
+# 		#RAW report on RAW POINTS
+# 		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_RawPoints.txt")
+# 		log ("Creating raw laz file of input raw points: %s " % (outfile))
+# 		np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+# 		fname = lashelper.txt2las(outfile, epsg=args.epsg)
+# 		fileutils.deletefile(outfile)
+
+# 	del xyz
+# 	# Force garbage collection
+# 	gc.collect()
+
+# 	# Populate the 'counter' field automatically so we can track the points accepted/rejected status
+# 	beamcountarray = np.arange(0, len(pcd.points))  # This will populate 'counter' with values 1, 2, 3
+# 	#PERCENTAGE PASSMARK
+# 	log("Learning about your signal to noise levels...")
+# 	start_time = time.time() # time the process
+# 	low = 0
+# 	high = 100
+# 	TARGET = float(args.outlierpercentage)
+# 	NUMPOINTS = max(int(args.numpoints),1)
+# 	#MACHINE LEARNING TO DETERMINE CORRECT LEVEL OF FILTER...
+# 	pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, low, high, TARGET, NUMPOINTS)
+# 	log ("Points accepted by machine learning: %d" % (len(inlier_cloud.points)))
+# 	log ("Points tagged for further evaluation: %d" % (len(outlier_cloud.points)))
+# 	# inliers = np.asarray(inlier_cloud.points)
+# 	outliers = np.asarray(outlier_cloud.points)
+# 	# inliers[:,2] /= ZSCALE
+# 	outliers[:,2] /= ZSCALE
+# 	########
+
+# 	#we need 1 list of ALL beams which are either accepted or rejected.
+# 	beamqualityresult = np.isin(beamcountarray, inlierindex)
+
+# 	#RAW save as a tif file so we can easily view in GIS...
+# 	#we need to make a regional grid which uses the nearest neighbours, so make this 3 times larger than the source grid.  this means 1 pixel each side of the current point
+# 	regionalfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_RegionalDepth.tif")
+# 	fname = cloud2tif.smoothtif(filename, regionalfilename, smooth=int(args.smooth))
+# 	log ("Created REGIONAL TIF file for IHO validation: %s " % (fname))
+
+# 	if args.verbose:
+# 		outfilename = os.path.join(outfile + "_RegionalDepth.laz")
+# 		outfilename = lashelper.demzip2(regionalfilename, outfilename, nodata=-9999)
+# 		log ("Created REGIONAL LAZ file of input raw points: %s " % (filename))
+
+# 	# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
+# 	# if they are close then we can re-accept them
+# 	log ("Validating candidates against TVU standard")
+# 	rio = rasterio.open(regionalfilename)
+# 	outlieridx = 0
+# 	confirmedoutliers = []
+# 	confirmedinliers = []
+# 	for idx, validity in enumerate(beamqualityresult):
+# 		if validity == True:
+# 			continue
+# 		else:
+# 			update_progress("Validating Candidates", idx/max(1,len(beamqualityresult)))
+# 			#the beam quality is false which means we need to get the next value from the outliers list
+# 			pt = outliers[outlieridx]
+# 			#the outlier IDX is the sequential number used in conjunction with the beam quality results.  Its not great but thats how the open3d cleaning works
+# 			outlieridx = outlieridx + 1
+# 			depth = pt[2]
+# 			# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
+# 			isedge=False
+# 			radius = 2 #the median filter is set to 5 so we use 2 each side of central point
+# 			mask = []
+# 			for x in range(-radius, radius):
+# 				for y in range(-radius, radius):
+# 					mask.append([pt[0] + (x * SRCRESOLUTION), pt[1] + (y * SRCRESOLUTION)])
+# 			for val in rio.sample(mask): 
+# 				if val == rio.nodatavals[0]:
+# 					griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
+# 					tvu = standard.gettvuat(griddepth)
+# 					deltaz = abs(griddepth-depth)
+# 					pt = np.append(pt, [deltaz, tvu, griddepth])
+# 					confirmedinliers.append(pt)
+# 					#re-accept the point as it is actually in specification
+# 					inlierindex.append(idx)
+# 					isedge=True
+# 					break
+
+# 			if isedge==True:
+# 				continue
+# 			#check the depth against the regional surface and the IHO standarON
+# 			griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
+# 			tvu = standard.gettvuat(griddepth)
+# 			deltaz = abs(griddepth-depth)
+# 			if griddepth == rio.nodatavals[0]:
+# 				#skip point if there is no raster surface value
+# 				pt = np.append(pt, [deltaz, tvu, griddepth])
+# 				confirmedinliers.append(pt)
+# 				#re-accept the point as it is actually in specification
+# 				inlierindex.append(idx)
+# 				continue
+# 			if deltaz >= tvu:
+# 				pt = np.append(pt, [deltaz, tvu, griddepth])
+# 				confirmedoutliers.append(pt)
+# 			else:
+# 				pt = np.append(pt, [deltaz, tvu, griddepth])
+# 				confirmedinliers.append(pt)
+# 				#re-accept the point as it is actually in specification
+# 				inlierindex.append(idx)
+
+# 	rio.close()
+	
+# 	#write the outliers to a point SHAPE file
+# 	shpfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".shp")
+# 	w = shapefile.Writer(shpfilename)
+# 	w.field('DeltaZ', 'N',8,3) # 8 byte floats, 3 decimal places
+# 	w.field('AllowedTVU', 'N',8,3)
+# 	w.field('Depth', 'N',8,3)
+# 	w.field('GridDepth', 'N',8,3)
+# 	w.field('SICApproved','C','254')
+# 	log ("Writing outliers to: %s" % (shpfilename))
+
+# 	for idx, pt in enumerate(confirmedoutliers):
+# 		w.pointz(pt[0], pt[1], pt[2])
+# 		w.record(pt[3], pt[4], pt[2], pt[5])
+# 	w.close()
+# 	#write out the prj so it opens nicely in GIS
+# 	cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg)
+
+# 	# q: what is a median filter and how does it work?
+# 	# a: https://www.youtube.com/watch?v=VvQ2mo3EXHk
+# 	#we need 1 list of ALL beams which are either accepted or rejected.  This is now a revised list folowing Standard validation
+# 	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
+# 	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
+# 	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
+# 	log ("Points accepted: %s" % (f'{len(inlier_cloud.points):,}'))
+# 	log ("Points outside specification: %s" % (f'{len(outlier_cloud.points):,}'))
+# 	log ("Percentage outside specification: %.7f" % (percentage))
+# 	inliers = np.asarray(inlier_cloud.points)
+# 	outliers = np.asarray(outlier_cloud.points)
+# 	inliers[:,2] /= ZSCALE
+# 	outliers[:,2] /= ZSCALE
+
+# 	if args.verbose:
+# 		#INLIERS reporting...
+# 		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_InlierPoints" + ".txt")
+# 		np.savetxt(outfile, inliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+# 		outfilename = os.path.join(outfile + "_Depth.tif")
+# 		# cloud2tif.saveastif(outfilename, geo, inliers, fill=False)
+# 		inlierraster = cloud2tif.point2raster(outfilename, geo, inliers, resolution = 1, bintype='mean', fill=False)
+# 		#write the outliers to a point cloud laz file
+# 		fname = lashelper.txt2las(outfile, epsg=args.epsg)
+# 		lashelper.lasgrid4( fname, outfilename, resolution=1, epsg=args.epsg)
+# 		# fileutils.deletefile(outfile)
+# 		log ("Created LAZ file of inliers: %s " % (fname))
+
+# 	#OUTLIERS reporting...
+# 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".txt")
+# 	np.savetxt(outfile, outliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+# 	log ("Created TXT file of outliers: %s " % (outfile))
+# 	#write the outliers to a point cloud laz file
+# 	fname = lashelper.txt2las(outfile, epsg=args.epsg)
+# 	log ("Created LAZ file of outliers: %s " % (fname))
+
+# 	# msg = "GGOutlier complete. outlier_cloud.points
+# 	log("QC complete at: %s" % (datetime.now()))
+# 	return shpfilename
+
+
+############################################################
+############################################################
+############################################################
+############################################################
+############################################################
+############################################################
+def process2(filename, args):
+	'''we will try to find outliers using fast array matrix processing.'''
+
+	#RAW save as a tif file so we can easily view in GIS...
+	#we need to make a regional grid which uses the nearest neighbours, so make this 3 times larger than the source grid.  this means 1 pixel each side of the current point
+	regionalfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_RegionalDepth.tif")
+	fname = cloud2tif.smoothtif(filename, regionalfilename, smooth=int(args.smooth))
+	log ("Created REGIONAL TIF file for IHO validation: %s " % (fname))
+
+	depthfilename = filename
 	log("Processing file: %s" % (filename))
 
 	log("QC to Survey Standard: %s" % (args.standard))
@@ -157,155 +403,79 @@ def process(filename, args):
 	beamcountarray = 0
 	ZSCALE = float(args.zscale) # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
 
+	#####################################
+	#####################################
+	#VERSION 2 of ENGINE to find OUTLIERS
+	deltazfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_DeltaZ.tif")
+	standard.computeDeltaZ(regionalfilename, depthfilename, deltazfilename)
+	log ("Created DeltaZ TIF file for validation of ALL depths: %s " % (deltazfilename))
 	#load the tif file...	
-	with rasterio.open(filename) as src:
-		band1 = src.read(1)
+	with rasterio.open(deltazfilename) as deltazsrc:
+		band1 = deltazsrc.read(1)
 		z = band1.flatten()
-		print('Band1 has shape', band1.shape)
+		# print('Band1 has shape', band1.shape)
 		height = band1.shape[0]
 		width = band1.shape[1]
 		cols, rows = np.meshgrid(np.arange(width), np.arange(height))
-		xs, ys = rasterio.transform.xy(src.transform, rows, cols)
+		xs, ys = rasterio.transform.xy(deltazsrc.transform, rows, cols)
 		x = np.array(xs).flatten()
 		y = np.array(ys).flatten()
-		print('lons shape', x.shape)
-		# src._crs.wkt
+		print('Array Size', x.shape)
 		xyz = np.stack((x,y,z), axis=1)
-		NODATA = src.nodatavals[0]
-		SRCRESOLUTION = src.res[0]
-	
-		# Delete the array
-		del x
-		del y
-		del z
-		del band1
-		del xs
-		del ys
-		# Force garbage collection
-		gc.collect()
-		src.close()
+		NODATA = deltazsrc.nodatavals[0]
+		SRCRESOLUTION = deltazsrc.res[0]
+		#remove the NODATA values
+		xyz = xyz[np.all(xyz != NODATA, axis=1)]
 
-	log("Loading Point Cloud...")
-	pcd = o3d.geometry.PointCloud()
-	#remove the NODATA values
-	xyz = xyz[np.all(xyz != NODATA, axis=1)]
-	#scale up the Z data so we accentuate the Z axis compared to the X,Y axis.  this is important as we use 
-	xyz[:,2] *= ZSCALE
-	pcd.points = o3d.utility.Vector3dVector(xyz)
-	xyz[:,2] /= ZSCALE
-	log("Depths loaded for quality control: %s" % (f'{len(pcd.points):,}'))
-
-	if args.verbose:
-		#RAW report on RAW POINTS
-		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_RawPoints.txt")
-		log ("Creating raw laz file of input raw points: %s " % (outfile))
-		np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-		fname = lashelper.txt2las(outfile, epsg=args.epsg)
-		fileutils.deletefile(outfile)
-
-	del xyz
-	# Force garbage collection
-	gc.collect()
-
-	# Populate the 'counter' field automatically so we can track the points accepted/rejected status
-	beamcountarray = np.arange(0, len(pcd.points))  # This will populate 'counter' with values 1, 2, 3
-
-	#PERCENTAGE PASSMARK
-	log("Learning about your signal to noise levels...")
-	start_time = time.time() # time the process
-	low = 0
-	high = 100
-	TARGET = float(args.outlierpercentage)
-	NUMPOINTS = max(int(args.numpoints),1)
-	#MACHINE LEARNING TO DETERMINE CORRECT LEVEL OF FILTER...
-	pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, low, high, TARGET, NUMPOINTS)
-
-	log ("Points accepted by machine learning: %d" % (len(inlier_cloud.points)))
-	log ("Points tagged for further evaluation: %d" % (len(outlier_cloud.points)))
-	# inliers = np.asarray(inlier_cloud.points)
-	outliers = np.asarray(outlier_cloud.points)
-	# inliers[:,2] /= ZSCALE
-	outliers[:,2] /= ZSCALE
-	#   log("QC Duration: %.3fs" % (time.time() - start_time))
-	# log("QC Duration: %.3fseconds" % (time.time() - start_time)) # log the processing time. It is handy to keep an eye on processing performance.
-	########
-
-	#we need 1 list of ALL beams which are either accepted or rejected.
-	beamqualityresult = np.isin(beamcountarray, inlierindex)
-
-	#RAW save as a tif file so we can easily view in GIS...
-	# outfilename = os.path.join(outfile + "_RegionalDepth.tif")
-	#we need to make a regional grid which uses the nearest neighbours, so make this 3 times larger than the source grid.  this means 1 pixel each side of the current point
-	# regionalfilename = lashelper.lasgridsubcircle( fname, outfilename, resolution= SRCRESOLUTION/2, epsg=args.epsg, subcircle=SRCRESOLUTION)
-	regionalfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_RegionalDepth.tif")
-	fname = cloud2tif.smoothtif(filename, regionalfilename, smooth=int(args.smooth))
-	log ("Created REGIONAL TIF file for IHO validation: %s " % (fname))
-
-	if args.verbose:
-		outfilename = os.path.join(outfile + "_RegionalDepth.laz")
-		outfilename = lashelper.demzip2(regionalfilename, outfilename, nodata=-9999)
-		log ("Created REGIONAL LAZ file of input raw points: %s " % (filename))
+	outliersfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_Outliers.tif")
+	outliersfilename, xydz = standard.findoutliers(allowabletvufilename, deltazfilename, outliersfilename)
 
 	# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
 	# if they are close then we can re-accept them
 	log ("Validating candidates against TVU standard")
 	rio = rasterio.open(regionalfilename)
+	depthio = rasterio.open(depthfilename)
+
 	outlieridx = 0
 	confirmedoutliers = []
 	confirmedinliers = []
-	for idx, validity in enumerate(beamqualityresult):
-		if validity == True:
-			continue
+
+	# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
+	ptout = []
+	radius = 2 #the median filter is set to 5 so we use 2 each side of central point
+	mask = []
+	for x in range(-radius, radius):
+		for y in range(-radius, radius):
+			mask.append([(x * SRCRESOLUTION), (y * SRCRESOLUTION)])
+	npmask = np.asarray(mask)
+
+	for idx, pt in enumerate(xydz):
+		npmaskrealworld = np.array(npmask)
+		npmaskrealworld[:,0] += pt[0]
+		npmaskrealworld[:,1] += pt[1]
+
+		# mask = []
+		# for x in range(-radius, radius):
+		# 	for y in range(-radius, radius):
+		# 		mask.append([pt[0] + (x * SRCRESOLUTION), pt[1] + (y * SRCRESOLUTION)])
+		
+		if rio.nodatavals[0] in list(rio.sample(npmaskrealworld)):
+		# if rio.nodatavals[0] in list(rio.sample(mask)):
+			#this is an edge case so drop it
+			confirmedinliers.append(pt)
 		else:
-			update_progress("Validating Candidates", idx/max(1,len(beamqualityresult)))
-			#the beam quality is false which means we need to get the next value from the outliers list
-			pt = outliers[outlieridx]
-			#the outlier IDX is the sequential number used in conjunction with the beam quality results.  Its not great but thats how the open3d cleaning works
-			outlieridx = outlieridx + 1
-			depth = pt[2]
-			# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
-			isedge=False
-			radius = 2 #the median filter is set to 5 so we use 2 each side of central point
-			mask = []
-			for x in range(-radius, radius):
-				for y in range(-radius, radius):
-					mask.append([pt[0] + (x * SRCRESOLUTION), pt[1] + (y * SRCRESOLUTION)])
-			for val in rio.sample(mask): 
-				if val == rio.nodatavals[0]:
-					griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
-					tvu = standard.gettvuat(griddepth)
-					deltaz = abs(griddepth-depth)
-					pt = np.append(pt, [deltaz, tvu, griddepth])
-					confirmedinliers.append(pt)
-					#re-accept the point as it is actually in specification
-					inlierindex.append(idx)
-					isedge=True
-					break
-
-			if isedge==True:
-				continue
-			#check the depth against the regional surface and the IHO standarON
+			#this is a real outlier so keep it
+			confirmedoutliers.append(pt)
 			griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
+			depth = next(depthio.sample([(pt[0], pt[1])]))[0]
 			tvu = standard.gettvuat(griddepth)
-			deltaz = abs(griddepth-depth)
-			if griddepth == rio.nodatavals[0]:
-				#skip point if there is no raster surface value
-				pt = np.append(pt, [deltaz, tvu, griddepth])
-				confirmedinliers.append(pt)
-				#re-accept the point as it is actually in specification
-				inlierindex.append(idx)
-				continue
-			if deltaz >= tvu:
-				pt = np.append(pt, [deltaz, tvu, griddepth])
-				confirmedoutliers.append(pt)
-			else:
-				pt = np.append(pt, [deltaz, tvu, griddepth])
-				confirmedinliers.append(pt)
-				#re-accept the point as it is actually in specification
-				inlierindex.append(idx)
+			deltaz = abs(pt[2])
+			ptout.append([pt[0], pt[1], depth, deltaz, tvu, griddepth])
 
-	rio.close()
-	
+	log ("Points checked: %s" % (f'{len(xyz):,}'))
+	log ("Points outside specification: %s" % (f'{len(ptout):,}'))
+	log ("Percentage outside specification: %.7f" % (100 * (len(ptout)/ len(xyz))))
+
 	#write the outliers to a point SHAPE file
 	shpfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".shp")
 	w = shapefile.Writer(shpfilename)
@@ -316,43 +486,16 @@ def process(filename, args):
 	w.field('SICApproved','C','254')
 	log ("Writing outliers to: %s" % (shpfilename))
 
-	for idx, pt in enumerate(confirmedoutliers):
+	for idx, pt in enumerate(ptout):
 		w.pointz(pt[0], pt[1], pt[2])
 		w.record(pt[3], pt[4], pt[2], pt[5])
 	w.close()
 	#write out the prj so it opens nicely in GIS
 	cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg)
 
-	# q: what is a median filter and how does it work?
-	# a: https://www.youtube.com/watch?v=VvQ2mo3EXHk
-	#we need 1 list of ALL beams which are either accepted or rejected.  This is now a revised list folowing Standard validation
-	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
-	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
-	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
-	log ("Points accepted: %s" % (f'{len(inlier_cloud.points):,}'))
-	log ("Points outside specification: %s" % (f'{len(outlier_cloud.points):,}'))
-	log ("Percentage outside specification: %.7f" % (percentage))
-	inliers = np.asarray(inlier_cloud.points)
-	outliers = np.asarray(outlier_cloud.points)
-	inliers[:,2] /= ZSCALE
-	outliers[:,2] /= ZSCALE
-
-	if args.verbose:
-		#INLIERS reporting...
-		outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_InlierPoints" + ".txt")
-		np.savetxt(outfile, inliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-		outfilename = os.path.join(outfile + "_Depth.tif")
-		# cloud2tif.saveastif(outfilename, geo, inliers, fill=False)
-		inlierraster = cloud2tif.point2raster(outfilename, geo, inliers, resolution = 1, bintype='mean', fill=False)
-		#write the outliers to a point cloud laz file
-		fname = lashelper.txt2las(outfile, epsg=args.epsg)
-		lashelper.lasgrid4( fname, outfilename, resolution=1, epsg=args.epsg)
-		# fileutils.deletefile(outfile)
-		log ("Created LAZ file of inliers: %s " % (fname))
-
 	#OUTLIERS reporting...
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".txt")
-	np.savetxt(outfile, outliers, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+	np.savetxt(outfile, ptout, fmt='%.4f', delimiter=',', newline='\n')
 	log ("Created TXT file of outliers: %s " % (outfile))
 	#write the outliers to a point cloud laz file
 	fname = lashelper.txt2las(outfile, epsg=args.epsg)

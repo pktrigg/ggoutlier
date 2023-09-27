@@ -7,6 +7,7 @@ import math
 import pprint
 import rasterio
 import numpy as np
+import logging
 
 ###############################################################################
 class sp44:
@@ -71,15 +72,15 @@ class standard:
 
 		#now compute the TVU for the entire surface using numpy array mathmatics so its fast
 		#preserve the NODATA value
-		# array[array==NODATA] = 0
+		array[array==NODATA] = -9999
 		arrayTVU = np.multiply (array, self.depthtvu_b)
 		arrayTVU = np.square (arrayTVU, arrayTVU)
 		arrayTVU = np.add (arrayTVU, (self.depthtvu_a*self.depthtvu_a))
 		arrayTVU = np.sqrt(arrayTVU)
-		# arrayTVU[arrayTVU== self.depthtvu_a] = NODATA
 
 		#reset the nodata value...
-		arrayTVU[arrayTVU> NODATA] = NODATA
+		tmp = math.floor(self.gettvuat(-9999))
+		arrayTVU[arrayTVU > tmp] = NODATA
 
 		# Write to tif, using the same profile as the source
 		with rasterio.open(outfilename, 'w', **profile) as dst:
@@ -94,7 +95,7 @@ class standard:
 			allowedarray = allowedsrc.read(1)
 			allowedprofile = allowedsrc.profile
 			allowedNODATA = allowedsrc.nodatavals[0]
-			allowedarray[allowedarray==allowedNODATA] = 9999
+			allowedarray[allowedarray==allowedNODATA] = -9999
 
 		allowedsrc.close()
 		with rasterio.open(uncertaintyfilename) as uncertaintysrc:
@@ -118,3 +119,96 @@ class standard:
 
 		return outfilename
 
+	###############################################################################
+	def computeDeltaZ(self, regionalfilename, depthfilename, outfilename):
+		'''compute the DeltaZ at all points in the surface.  Depta is difference between the point depth and the regional depth'''
+		with rasterio.open(regionalfilename) as regionalsrc:
+			regionalarray = regionalsrc.read(1)
+			regionalprofile = regionalsrc.profile
+			regionalNODATA = regionalsrc.nodatavals[0]
+			regionalarray[regionalarray==regionalNODATA] = -9999
+		regionalsrc.close()
+
+		with rasterio.open(depthfilename) as depthsrc:
+			deptharray = depthsrc.read(1)
+			depthprofile = depthsrc.profile
+			depthNODATA = depthsrc.nodatavals[0]
+			deptharray[deptharray==depthNODATA] = 9999
+		depthsrc.close()
+	
+		#now compute the TVU barometric pressure for the entire surface using numpy array mathmatics so its fast
+		# deltaz = abs(griddepth-depth)
+		deltazarray = np.subtract (regionalarray, deptharray)
+		deltazarray = np.abs(deltazarray)
+
+		deltazarray[deltazarray < -1000] = regionalNODATA
+		deltazarray[deltazarray > 1000] = regionalNODATA
+		# deltazarray[deltazarray == 0] = regionalNODATA
+
+		# Write to tif, using the same profile as the source
+		with rasterio.open(outfilename, 'w', **regionalprofile) as dst:
+			dst.write_band(1, deltazarray)
+
+		return outfilename
+
+	###############################################################################
+	def findoutliers(self, tvufilename, deltazfilename, outfilename):
+		'''given a deltaz and tvu layer find the outliers by thresholding using the TVU array'''
+		with rasterio.open(deltazfilename) as deltazsrc:
+			deltazarray = deltazsrc.read(1)
+			deltazprofile = deltazsrc.profile
+			deltazNODATA = deltazsrc.nodatavals[0]
+			height = deltazarray.shape[0]
+			width = deltazarray.shape[1]
+			cols, rows = np.meshgrid(np.arange(width), np.arange(height))
+			xs, ys = rasterio.transform.xy(deltazsrc.transform, rows, cols)
+			x = np.array(xs).flatten()
+			y = np.array(ys).flatten()
+			# deltazarray[deltazarray==deltazNODATA] = -9999
+		deltazsrc.close()
+
+		with rasterio.open(tvufilename) as tvusrc:
+			tvuarray = tvusrc.read(1)
+			tvuprofile = tvusrc.profile
+			tvuNODATA = tvusrc.nodatavals[0]
+			# tvuarray[tvuarray== tvuNODATA] = 0
+		tvusrc.close()
+	
+		# make outlier array of difference in deltaz and tvu.  NEGATIVE values are not outliers.  only POSITVE VALUEs are outliers
+		log("Computing outliers...")
+		outliersarray = np.subtract(deltazarray, tvuarray)
+		outliersarray[outliersarray==deltazNODATA] = deltazNODATA
+		outliersarray[outliersarray < 0] = 0
+
+		valid = (outliersarray>0) & (deltazarray < 1000)
+		deltaz = np.where(valid, deltazarray, 0)
+
+		dz = deltaz.flatten()
+		xydz = np.stack((x,y,dz), axis=1)
+		#remove the values which are inliers
+		xydz = xydz[np.all(xydz > 0.0, axis=1)]
+
+		# Write to tif, using the same profile as the source
+		log("Writing outliers to raster file: %s" % (outfilename))
+		with rasterio.open(outfilename, 'w', **deltazprofile) as dst:
+			dst.write_band(1, outliersarray)
+
+		return outfilename, xydz
+
+	###############################################################################
+	def	log(self, msg, error = False, printmsg=True):
+			if printmsg:
+				print (msg)
+			if error == False:
+				logging.info(msg)
+			else:
+				logging.error(msg)
+
+###############################################################################
+def	log(msg, error = False, printmsg=True):
+		if printmsg:
+			print (msg)
+		if error == False:
+			logging.info(msg)
+		else:
+			logging.error(msg)
