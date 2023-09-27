@@ -73,7 +73,7 @@ def main():
 	msg = str(iho.getordernames())
 
 	parser = ArgumentParser(description='Read a floating point TIF file of depths and find all outliers exceeding a user specified threshold.')
-	parser.add_argument('-epsg', 	action='store', 		default="0",		dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 32751')
+	parser.add_argument('-epsg', 	action='store', 		default="",		dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 32751')
 	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='Input filename/folder to process.')
 	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
 	parser.add_argument('-n', 		action='store', 		default="20",		dest='numpoints', 		help='ADVANCED:Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:20]')
@@ -90,7 +90,11 @@ def main():
 	if os.path.isfile(args.inputfile):
 		matches.append(args.inputfile)
 
-	if len (args.inputfile) == 0:
+	if len(args.epsg) == 0:
+		log("oops, we need an EPSG code to georeference data.  please specify one.  quitting")
+		exit(0)
+
+	if len(args.inputfile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
 		inputfolder = os.getcwd()
 		matches = fileutils.findFiles2(False, inputfolder, "*.tif")
