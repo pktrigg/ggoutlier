@@ -8,6 +8,7 @@ import pprint
 import rasterio
 import numpy as np
 import logging
+import gc
 
 ###############################################################################
 class sp44:
@@ -96,14 +97,18 @@ class standard:
 			allowedprofile = allowedsrc.profile
 			allowedNODATA = allowedsrc.nodatavals[0]
 			allowedarray[allowedarray==allowedNODATA] = -9999
-
 		allowedsrc.close()
+		#garbage collect
+		gc.collect()	
+
 		with rasterio.open(uncertaintyfilename) as uncertaintysrc:
 			uncertaintyarray = uncertaintysrc.read(1)
 			uncertaintyprofile = uncertaintysrc.profile
 			uncertaintyNODATA = uncertaintysrc.nodatavals[0]
 			uncertaintyarray[uncertaintyarray==uncertaintyNODATA] = 0
 		uncertaintysrc.close()
+		#garbage collect
+		gc.collect()	
 	
 		#now compute the TVU barometric pressure for the entire surface using numpy array mathmatics so its fast
 		# the TVUBAROMETER is the percentage of the allowable uncertainty compared to the actual uncertainty as computed by CUBE (or other software)
@@ -129,13 +134,19 @@ class standard:
 			regionalarray[regionalarray==regionalNODATA] = -9999
 		regionalsrc.close()
 
+		#garbage collect
+		gc.collect()	
+
 		with rasterio.open(depthfilename) as depthsrc:
 			deptharray = depthsrc.read(1)
 			depthprofile = depthsrc.profile
 			depthNODATA = depthsrc.nodatavals[0]
 			deptharray[deptharray==depthNODATA] = 9999
 		depthsrc.close()
-	
+
+		#garbage collect
+		gc.collect()	
+
 		#now compute the TVU barometric pressure for the entire surface using numpy array mathmatics so its fast
 		# deltaz = abs(griddepth-depth)
 		deltazarray = np.subtract (regionalarray, deptharray)
@@ -162,10 +173,17 @@ class standard:
 			width = deltazarray.shape[1]
 			cols, rows = np.meshgrid(np.arange(width), np.arange(height))
 			xs, ys = rasterio.transform.xy(deltazsrc.transform, rows, cols)
+			xs = np.float32(xs)
+			ys = np.float32(ys)
 			x = np.array(xs).flatten()
 			y = np.array(ys).flatten()
 			# deltazarray[deltazarray==deltazNODATA] = -9999
+			del xs
+			del ys
 		deltazsrc.close()
+
+		#garbage collect
+		gc.collect()	
 
 		with rasterio.open(tvufilename) as tvusrc:
 			tvuarray = tvusrc.read(1)
@@ -173,7 +191,10 @@ class standard:
 			tvuNODATA = tvusrc.nodatavals[0]
 			# tvuarray[tvuarray== tvuNODATA] = 0
 		tvusrc.close()
-	
+
+		#garbage collect
+		gc.collect()	
+
 		# make outlier array of difference in deltaz and tvu.  NEGATIVE values are not outliers.  only POSITVE VALUEs are outliers
 		log("Computing outliers...")
 		outliersarray = np.subtract(deltazarray, tvuarray)
@@ -183,8 +204,14 @@ class standard:
 		valid = (outliersarray>0) & (deltazarray < 1000)
 		deltaz = np.where(valid, deltazarray, 0)
 
+		#clean up
+		del deltazarray
+		del tvuarray
+		#garbage collect
+		gc.collect()	
+
 		dz = deltaz.flatten()
-		xydz = np.stack((x,y,dz), axis=1)
+		xydz = np.stack((x,y,dz), axis=1, dtype=np.float32)
 		#remove the values which are inliers
 		xydz = xydz[np.all(xydz > 0.0, axis=1)]
 

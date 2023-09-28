@@ -6,7 +6,7 @@ import numpy as np
 
 import geodetic
 import logging
-
+import gc
 
 import rasterio
 from scipy.signal import medfilt
@@ -28,19 +28,22 @@ def hillshade(array,azimuth,angle_altitude):
 	return 255*(shaded + 1)/2
 
 ###############################################################################
-def smoothtif(filename, outfilename, smooth=5):
-	''' smooth a tif file using scipy'''
+def smoothtif(filename, outfilename, near=5):
+	''' smooth a tif file using scipy. the near parameter is the size of the median filter.'''
 	with rasterio.open(filename) as src:
 		array = src.read(1)
 		profile = src.profile
 
 	# apply a 5x5 median filter to each band
 	# filtered = medfilt(array, (1, 5, 5))
-	filtered = medfilt2d(array, smooth)
+	filtered = medfilt2d(array, near)
 
 	# Write to tif, using the same profile as the source
 	with rasterio.open(outfilename, 'w', **profile) as dst:
 		dst.write_band(1, filtered)
+
+	#garbage collect
+	gc.collect()	
 
 	return outfilename
 
