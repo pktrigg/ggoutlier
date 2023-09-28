@@ -77,13 +77,13 @@ def main():
 	parser.add_argument('-epsg', 	action='store', 		default="",		dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 32751')
 	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='Input filename/folder to process.')
 	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
-	parser.add_argument('-n', 		action='store', 		default="20",		dest='numpoints', 		help='ADVANCED:Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:20]')
-	parser.add_argument('-p', 		action='store', 		default="5",		dest='outlierpercentage',help='ADVANCED:Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. Maximum is 5% [Default:5]')
-	parser.add_argument('-z', 		action='store', 		default="10",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
+	# parser.add_argument('-n', 		action='store', 		default="20",		dest='numpoints', 		help='ADVANCED:Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:20]')
+	# parser.add_argument('-p', 		action='store', 		default="5",		dest='outlierpercentage',help='ADVANCED:Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. Maximum is 5% [Default:5]')
+	# parser.add_argument('-z', 		action='store', 		default="10",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
 	parser.add_argument('-near', 	action='store', 		default="5",		dest='near',			help='ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neghbours can be calculated. [Default:5]')
-	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + msg + ' [Default:order1a]' )
+	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + ''.join(msg) + ' [Default:order1a]' )
 	parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
-	# parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [deafult:false]')
+	# parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [Default:false]')
 
 	matches = []
 	args = parser.parse_args()
@@ -123,7 +123,7 @@ def main():
 	log("Computer: %s" %(os.environ['COMPUTERNAME']))
 	log("Number of CPUs %d" %(mp.cpu_count()))	
 
-	args.outlierpercentage = min(5.0, float(args.outlierpercentage))
+	# args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
 	for file in matches:
 		#skip the file if its the same as the uncertianty file name
@@ -175,7 +175,7 @@ def process2(filename, args):
 
 	pingcounter = 0
 	beamcountarray = 0
-	ZSCALE = float(args.zscale) # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
+	# ZSCALE = float(args.zscale) # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
 
 	#####################################
 	#####################################
@@ -284,57 +284,57 @@ def process2(filename, args):
 	log("QC complete at: %s" % (datetime.now()))
 	return shpfilename
 
-##################################################################################
-def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
-	'''clean outliers using binary chop to control how many points we reject'''
-	'''use spherical radius to identify outliers and clusters'''
-	'''binary chop will aim for target percentage of data deleted rather than a fixed filter level'''
-	'''this way the filter adapts to the data quality'''
-	'''TARGET is the percentage of the input points we are looking to reject'''
-	'''NUMPOINTS is the number of nearest neighbours within the spherical radius which is the threshold we use to consider a point an outlier.'''
-	'''If a point has no friends, then he is an outlier'''
-	'''if a point has moew the NUMPOINTS in the spherical radius then he is an inlier, ie good'''
+# ##################################################################################
+# def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
+# 	'''clean outliers using binary chop to control how many points we reject'''
+# 	'''use spherical radius to identify outliers and clusters'''
+# 	'''binary chop will aim for target percentage of data deleted rather than a fixed filter level'''
+# 	'''this way the filter adapts to the data quality'''
+# 	'''TARGET is the percentage of the input points we are looking to reject'''
+# 	'''NUMPOINTS is the number of nearest neighbours within the spherical radius which is the threshold we use to consider a point an outlier.'''
+# 	'''If a point has no friends, then he is an outlier'''
+# 	'''if a point has moew the NUMPOINTS in the spherical radius then he is an inlier, ie good'''
 
-	# Force garbage collection
-	gc.collect()
+# 	# Force garbage collection
+# 	gc.collect()
 
-	#outlier removal by radius
-	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
-	# http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
+# 	#outlier removal by radius
+# 	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
+# 	# http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
 	
-	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
-	#ind: The index of the points which are NOT outliers
-	currentfilter = (high+low)/2
+# 	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
+# 	#ind: The index of the points which are NOT outliers
+# 	currentfilter = (high+low)/2
 
-	cl, inlierindex = pcd.remove_statistical_outlier(nb_neighbors=NUMPOINTS,	std_ratio=currentfilter)
-	# cl, inlierindex = pcd.remove_radius_outlier(nb_points = NUMPOINTS, radius = currentfilter)
+# 	cl, inlierindex = pcd.remove_statistical_outlier(nb_neighbors=NUMPOINTS,	std_ratio=currentfilter)
+# 	# cl, inlierindex = pcd.remove_radius_outlier(nb_points = NUMPOINTS, radius = currentfilter)
 
-	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
-	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
-	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
-	log ("Current filter StdDev %.2f" % (currentfilter))
-	log ("Percentage Rejection %.2f" % (percentage))
+# 	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
+# 	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
+# 	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
+# 	log ("Current filter StdDev %.2f" % (currentfilter))
+# 	log ("Percentage Rejection %.2f" % (percentage))
 
-	decimals = len(str(TARGET).split(".")[1])
-	percentage = round(percentage, decimals)
-	if percentage < TARGET:
-		#we have rejected too few, so run again setting the low to the pervious value
-		log ("Filter level decreasing to reject a few more points...")
-		del inlier_cloud
-		del outlier_cloud
-		del cl 				
-		del inlierindex
-		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, low, currentfilter, TARGET, NUMPOINTS)
-	elif percentage > TARGET:
-		#we have rejected too few, so run again setting the low to the pervious value
-		log ("Filter level increasing to reject a few less points...")
-		del inlier_cloud
-		del outlier_cloud
-		del cl 				
-		del inlierindex
-		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, currentfilter, high, TARGET, NUMPOINTS)
+# 	decimals = len(str(TARGET).split(".")[1])
+# 	percentage = round(percentage, decimals)
+# 	if percentage < TARGET:
+# 		#we have rejected too few, so run again setting the low to the pervious value
+# 		log ("Filter level decreasing to reject a few more points...")
+# 		del inlier_cloud
+# 		del outlier_cloud
+# 		del cl 				
+# 		del inlierindex
+# 		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, low, currentfilter, TARGET, NUMPOINTS)
+# 	elif percentage > TARGET:
+# 		#we have rejected too few, so run again setting the low to the pervious value
+# 		log ("Filter level increasing to reject a few less points...")
+# 		del inlier_cloud
+# 		del outlier_cloud
+# 		del cl 				
+# 		del inlierindex
+# 		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, currentfilter, high, TARGET, NUMPOINTS)
 
-	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
+# 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
 ###############################################################################
 def update_progress(job_title, progress):
