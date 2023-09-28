@@ -81,3 +81,5 @@ The primary output is Outliers saved to a point cloud file and a shape file. The
 depth, the Regional Depth, the AllowableTVU, the DeltaZ (difference between Regional Depth and
 processed depth) and a field for Review/Approval by SIC. This file should be loaded to CARIS/GIS so the identified outliers can be reviewe.  Please remember an outlier is EITHER a spike OR a feature.  The reviewer has to make the choice.  GGOutlier allows the reviewer to focus on the depths which do not meet specification.  this does not mean they are a spike.  It means they need to be understood what they are.
 GGOutlier will generate a QC report PDF in order to enable rapid assessment of results.
+
+![Overview](ggOutlierGIS.png?raw=true "Results of GGOutlier")
