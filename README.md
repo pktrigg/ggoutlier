@@ -46,7 +46,7 @@ To specify the file to process you use the <-i filename.tif> parameter.  if you 
 
 To specify a standard use the -standard parameter, <-standard order1a>
 
-## Inputs
+## What are the Inputs?
 Inputs are very simple. A depth surface (a floating point TIF file) and a IHO SP44 specification such
 as 'order1a', 'specialorder'.
 
@@ -75,11 +75,23 @@ surface
 The DeltaZ values are then assessed against the TVU for that depth and either flagged as an
 outlier or accepted as within specification. The flagged depths are called 'outliers'.
 
-# What are the outputs
+## What are the outputs
 GGOutlier does NOT modify the input file in any way. It is a read-only process.
 The primary output is Outliers saved to a point cloud file and a shape file. The shape file contains the processed
 depth, the Regional Depth, the AllowableTVU, the DeltaZ (difference between Regional Depth and
 processed depth) and a field for Review/Approval by SIC. This file should be loaded to CARIS/GIS so the identified outliers can be reviewe.  Please remember an outlier is EITHER a spike OR a feature.  The reviewer has to make the choice.  GGOutlier allows the reviewer to focus on the depths which do not meet specification.  this does not mean they are a spike.  It means they need to be understood what they are.
 GGOutlier will generate a QC report PDF in order to enable rapid assessment of results.
+
+## Role of Surveyor In Charge
+The SIC role is essential. The resulting shape file identifies all depths which do NOT meet the IHO specificaiton. These are either outliers missed in processing or depths on stepp slopes which inherently will not meet TVU specification due to gridding resolution limitations. it is the role of the SIC to review these flagged outliers and confirm they are valid or need to be passed back to the data processors for additional  cleaning.
+The SIC should edit the shape file attribute field to document each outlier has been reveiwed and approved.
+
+## Role of Data Processor
+The shape file can be loaded into the processing software (ag CARIS, Qimera) and used to guide the data processor to revisit the ungridded raw data points and re-evaluate underlying data and edit if required.
+If additional edits are required, the DP shall regenerate the depth surface and rerun GGOutlier.
+
+## Role of Client Representative
+The shape file and Regional Depth will be delivered as part of a survey report. This can be used by the client to gain confidence all outliers have been reviewed by the SIC and there are no additional outliers in the depth surface.
+Below is an example of how to consume the results from GGOutlier using GIS to analyse outliers which do not meet specification.
 
 ![Overview](GGOutlierGIS.png)
