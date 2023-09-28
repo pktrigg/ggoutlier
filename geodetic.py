@@ -507,7 +507,7 @@ def getPRJFromEPSG(EPSGCode):
 	return ""
 
 ###############################################################################
-def loadProj(EPSGCode):
+def loadProj(EPSGCode=0, wkt=""):
 	'''load a pyproj object using the supplied code'''
 	# wgs84=pyproj.Proj("+init=EPSG:4326") # LatLon with WGS84 datum used by GPS units and Google Earth
 	#note: anaconda conda install has a bug when installing.  It is stupid and forgets to install the proj data folder.
@@ -515,6 +515,14 @@ def loadProj(EPSGCode):
 	#copy the data folder from c:\ggtools\python\pyproj to # C:\ProgramData\Anaconda3\Lib\site-packages\pyproj
 	#rename the datadir.py to datadir.bak and then copy the datadir.py from the c:\ggtools\python\pyproj into the folder
 	projection = None
+	if len(WKT) > 0:
+		try:
+			projection = pyproj.Proj("EPSG:" + str(WKT))
+		except:
+			return None
+		else:
+			projection = None
+
 	if EPSGCode > 0:
 		try:
 			# projection = pyproj.Proj("+init=EPSG:" + str(EPSGCode))
@@ -537,10 +545,24 @@ def	writePRJ(filename, EPSGCode='4326'):
 		prj.write('GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]') # python will convert \n to os.linesep
 	prj.close() # you can omit in most cases as the destructor will call it
 
+###############################################################################
+def wkt2epsg(wkt=""):
+	'''load a pyproj object using the WKT and return the EPSG code'''
+	epsg = 0
+	if len(wkt) > 0:
+		try:
+			crs = pyproj.CRS(wkt)
+			epsg = crs.to_epsg(min_confidence=25)
+		except:
+			return None
+		else:
+			return epsg
+	return epsg
+
 ##########################################################################################################################
 class geodesy:
 	'''a simple helper class to hold a pyproj geodesy object so we can transform with ease'''
-	def __init__(self, EPSGCode = ""):
+	def __init__(self, EPSGCode = "", wkt=""):
 
 		#clear the GDAL paths to proj as they break the pyproj libraries
 		os.environ["PROJ_LIB"]  = ""
@@ -548,21 +570,44 @@ class geodesy:
 
 		self.EPSGCode = EPSGCode
 		self.projection = None
-		self.loadProj(EPSGCode)
+		self.loadProj(EPSGCode, wkt)
 
 	###############################################################################
-	def loadProj(self, EPSGCode):
+	def wkt2epsg(self, wkt=""):
+		'''load a pyproj object using the WKT and return the EPSG code'''
+		if len(wkt) > 0:
+			try:
+				crs = pyproj.CRS(wkt)
+				epsg = crs.to_epsg(min_confidence=25)
+			except:
+				return None
+			else:
+				return None
+		return epsg
+	
+	###############################################################################
+	def loadProj(self, EPSGCode=0, wkt=""):
 		'''load a pyproj object using the supplied code'''
 		# wgs84=pyproj.Proj("+init=EPSG:4326") # LatLon with WGS84 datum used by GPS units and Google Earth
 		#note: anaconda conda install has a bug when installing.  It is stupid and forgets to install the proj data folder.
 		#to fix this, you need to
 		#copy the data folder from c:\ggtools\python\pyproj to # C:\ProgramData\Anaconda3\Lib\site-packages\pyproj
 		#rename the datadir.py to datadir.bak and then copy the datadir.py from the c:\ggtools\python\pyproj into the folder
+		projection = None
+
+		if len(wkt) > 0:
+			try:
+				projection = pyproj.Proj(pyproj.CRS(wkt))
+			except:
+				return None
+			else:
+				projection = None
 
 		if len(EPSGCode) > 0:
 			try:
 				# projection = pyproj.Proj("+init=EPSG:" + str(EPSGCode))
 				projection = pyproj.Proj("EPSG:" + str(EPSGCode))
+				
 			except:
 				return None
 

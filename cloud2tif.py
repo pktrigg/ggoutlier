@@ -1,3 +1,4 @@
+import os
 import math
 import rasterio
 from rasterio.transform import from_origin
@@ -9,8 +10,23 @@ import logging
 import gc
 
 import rasterio
+from rasterio.crs import CRS
 from scipy.signal import medfilt
 from scipy.signal import medfilt2d
+
+###############################################################################
+def getWKT(filename):
+		
+	if not os.path.exists(filename):
+		return
+	
+	with rasterio.open(filename) as src:
+		WKT = src._crs.wkt
+		# pkpk = CRS.from_epsg(4326).wkt
+	src.close()
+	#garbage collect
+	gc.collect()	
+	return WKT
 
 # function to caluclate hillshade
 ###############################################################################
@@ -299,11 +315,17 @@ def	log(msg, error = False, printmsg=True):
 			logging.error(msg)
 
 ###############################################################################
-def	createprj(outfilename, epsg):
+# def	createprj(outfilename, epsg, wkt=""):
+def	createprj(outfilename, wkt=""):
 	'''create the PRJ file'''
 
-	geo = geodetic.geodesy(epsg)
+	# geo = geodetic.geodesy(epsg)
+	# prj = open(outfilename, "w")
+	# prj.writelines(geo.projection.crs.to_wkt(version="WKT1_ESRI", pretty=True))
+	# prj.close()
+
 	prj = open(outfilename, "w")
-	prj.writelines(geo.projection.crs.to_wkt(version="WKT1_ESRI", pretty=True))
+	prj.writelines(wkt)
 	prj.close()
+
 ###############################################################################

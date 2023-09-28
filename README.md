@@ -18,12 +18,29 @@ Inliers are points which do meet the required specification for allowable total 
 Outliers are points which do NOT meet the required specification for allowable Total Vertical Uncertainty (TVU).
 
 ## How to run GGOutlier
+Run the script like this...
+'''
+python ggoutlier.py
+'''
+
+To get help on the script...
+'''
+python ggoutlier.py -h
+'''
+To run the script on a specific file...
+'''
+python ggoutlier.py -i c:\temp\pk.tif
+'''
+
+To run the script on a specific file...
+'''
+python ggoutlier.py -i c:\temp\pk.tif
+'''
 The easiest way is to open a command window in the folder where your depth.tif file resides
 
 ```
-Y:\Subsea-Cloud\ggtools\kmallclean\SI1026_F>python y:\subsea-cloud\ggtools\ggoutlier\ggoutlier.py -epsg 32751 -i . -standard order1a
+Y:\Subsea-Cloud\ggtools\kmallclean\SI1026_F>python y:\subsea-cloud\ggtools\ggoutlier\ggoutlier.py -i . -standard order1a
 ```
-To make a georeferenced shape file which opens nicely in GIS or caris you need to specify the EPSG code with <-epsg 32751> or whatever your epsg code is.
 
 To specify the file to process you use the <-i filename.tif> parameter.  if you are in teh folder where the file exists you can type <-i .> or even skip the parameter entirely.
 
@@ -34,16 +51,20 @@ Inputs are very simple. A depth surface (a floating point TIF file) and a IHO SP
 as 'order1a', 'specialorder'.
 
 ```
+usage: ggoutlier.py [-h] [-i INPUTFILE] [-epsg EPSG] [-odir ODIR] [-near NEAR] [-standard STANDARD] [-unc UNCERTAINTYFILENAME]
+
+Analyse a floating point TIF file of depths and find all outliers exceeding a user specified threshold.
+
 options:
   -h, --help            show this help message and exit
-  -epsg EPSG            Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 32751
-  -i INPUTFILE          Input filename/folder to process.
-  -odir ODIR            Specify a relative output folder e.g. -odir GIS
-  -near NEAR            ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neghbours can be calculated. [Default:5]
-  -standard STANDARD    Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :['order2', 'order1b', 'order1a', 'specialorder', 'exclusiveorder',
-                        'hipp1', 'hipp2', 'hippassage'] [Default:order1a]
+  -i INPUTFILE          (required) Input filename/folder to process.
+  -epsg EPSG            (optional) Specify an output EPSG code for transforming from WGS84 to East,North. If the TIF file is georeferenced this is not required to be specified. e.g. -epsg 32751
+  -odir ODIR            (optional) Specify a relative output folder. normally leave this empty. a folder will be created for you. e.g. -odir GIS
+  -near NEAR            (optional) ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neighbours can be calculated. [Default:5]
+  -standard STANDARD    (optional) Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :['order2', 'order1b', 'order1a', 'specialorder',
+                        'exclusiveorder', 'hipp1', 'hipp2', 'hippassage'] [Default:order1a]
   -unc UNCERTAINTYFILENAME
-                        Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer [Default:<nothing>]
+                        (optional) Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer [Default:<nothing>]
 ```
 
 ## What does it do?

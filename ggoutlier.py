@@ -42,6 +42,7 @@
 # try to improve performance by replacing open3d with numpy
 # tidy up the pdf report spelling
 # clean memory as we go and use 32 bit floats instead of 64bit.  this helps it a lot!
+# epsg code is no longer required.
 
 # todo ##########################################
 
@@ -73,16 +74,13 @@ def main():
 	iho = ggmbesstandard.sp44()
 	msg = str(iho.getordernames())
 
-	parser = ArgumentParser(description='Read a floating point TIF file of depths and find all outliers exceeding a user specified threshold.')
-	parser.add_argument('-epsg', 	action='store', 		default="",		dest='epsg', 			help='Specify an output EPSG code for transforming from WGS84 to East,North,e.g. -epsg 32751')
-	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='Input filename/folder to process.')
-	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='Specify a relative output folder e.g. -odir GIS')
-	# parser.add_argument('-n', 		action='store', 		default="20",		dest='numpoints', 		help='ADVANCED:Specify the number of nearest neighbours points to use.  More points means more data will be rejected. ADVANCED ONLY [Default:20]')
-	# parser.add_argument('-p', 		action='store', 		default="5",		dest='outlierpercentage',help='ADVANCED:Specify the approximate percentage of data to remove.  the engine will analyse the data and learn what filter settings are appropriate for your waterdepth and data quality. This is the most important (and only) parameter to consider spherical radius to find the nearest neightbours. Maximum is 5% [Default:5]')
-	# parser.add_argument('-z', 		action='store', 		default="10",		dest='zscale',			help='ADVANCED:Specify the ZScale to accentuate the depth difference ove the horizontal distance between points. Think of this as how you exxagerate the vertical scale in a swath editor to more easily spot the outliers. [Default:10]')
-	parser.add_argument('-near', 	action='store', 		default="5",		dest='near',			help='ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neghbours can be calculated. [Default:5]')
-	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + ''.join(msg) + ' [Default:order1a]' )
-	parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
+	parser = ArgumentParser(description='Analyse a floating point TIF file of depths and find all outliers exceeding a user specified threshold.')
+	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='(required) Input filename/folder to process.')
+	parser.add_argument('-epsg', 	action='store', 		default="",		dest='epsg', 			help='(optional) Specify an output EPSG code for transforming from WGS84 to East,North. If the TIF file is georeferenced this is not required to be specified. e.g. -epsg 32751')
+	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='(optional) Specify a relative output folder. normally leave this empty.  a folder will be created for you. e.g. -odir GIS')
+	parser.add_argument('-near', 	action='store', 		default="5",		dest='near',			help='(optional) ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neighbours can be calculated. [Default:5]')
+	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='(optional) Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + ''.join(msg) + ' [Default:order1a]' )
+	parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='(optional) Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
 	# parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [Default:false]')
 
 	matches = []
@@ -90,10 +88,6 @@ def main():
 
 	if os.path.isfile(args.inputfile):
 		matches.append(args.inputfile)
-
-	if len(args.epsg) == 0:
-		log("oops, we need an EPSG code to georeference data.  please specify one.  quitting")
-		exit(0)
 
 	if len(args.inputfile) == 0:
 		# no file is specified, so look for a .pos file in terh current folder.
@@ -115,6 +109,18 @@ def main():
 
 	logfilename = os.path.join(odir,"GGOutlier_log.txt").replace('\\','/')
 	logging.basicConfig(filename = logfilename, level=logging.INFO)
+
+	#get the WKT from the TIF file and add it to the args so we can make available....
+	WKT = cloud2tif.getWKT(matches[0])
+	parser.add_argument('-wkt',		action='store', 		default=WKT,			dest='wkt')
+	args = parser.parse_args()
+	#load the python proj projection object library if the user has requested it
+	if len(args.epsg) == 0:
+		args.epsg = str(geodetic.wkt2epsg(wkt=WKT))
+	#add the parameters to the args object
+	geo = geodetic.geodesy(EPSGCode=args.epsg, wkt=WKT)
+	log("EPSGCode for geodetic conversions: %s" % (args.epsg))
+	
 	log("Configuration: %s" % (str(args)))
 	log("Output Folder: %s" % (odir))
 	log("GGOutlier Version: 2.01")
@@ -130,12 +136,12 @@ def main():
 		if os.path.basename(file) == os.path.basename(args.uncertaintyfilename):
 			continue
 
-		# args.odir = str("GGOutlier_%s_V1" % (time.strftime("%Y%m%d-%H%M%S")))
+		args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
 		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 		# makedirs(odir)
 		# process(file, args)
 
-		args.odir = str("GGOutlier_%s_V2" % (time.strftime("%Y%m%d-%H%M%S")))
+		# args.odir = str("GGOutlier_%s_V2" % (time.strftime("%Y%m%d-%H%M%S")))
 		odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 		makedirs(odir)
 		process2(file, args)
@@ -170,8 +176,8 @@ def process2(filename, args):
 		log ("Created TVU Barometer TIF file for validation: %s " % (outfilename))
 
 	#load the python proj projection object library if the user has requested it
-	geo = geodetic.geodesy(args.epsg)
-	log("EPSGCode for geodetic conversions: %s" % (args.epsg))
+	# geo = geodetic.geodesy(args.epsg)
+	# log("EPSGCode for geodetic conversions: %s" % (args.epsg))
 
 	pingcounter = 0
 	beamcountarray = 0
@@ -270,7 +276,8 @@ def process2(filename, args):
 		w.record(pt[3], pt[4], pt[2], pt[5])
 	w.close()
 	#write out the prj so it opens nicely in GIS
-	cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg)
+	cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.wkt)
+	# cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg, args.wkt)
 
 	#OUTLIERS reporting...
 	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".txt")
