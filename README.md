@@ -17,11 +17,22 @@ GGOutlier primary purpose is to positively, rigorously identify each and every d
 Inliers are points which do meet the required specification for allowable total vertical uncertainty.
 Outliers are points which do NOT meet the required specification for allowable Total Vertical Uncertainty (TVU).
 
+## How to run GGOutlier
+The easiest way is to open a command window in the folder where your depth.tif file resides
+
+```
+Y:\Subsea-Cloud\ggtools\kmallclean\SI1026_F>python y:\subsea-cloud\ggtools\ggoutlier\ggoutlier.py -epsg 32751 -i . -standard order1a
+```
+To make a georeferenced shape file which opens nicely in GIS or caris you need to specify the EPSG code with <-epsg 32751> or whatever your epsg code is.
+
+To specify the file to process you use the <-i filename.tif> parameter.  if you are in teh folder where the file exists you can type <-i .> or even skip the parameter entirely.
+
+To specify a standard use the -standard parameter, <-standard order1a>
+
 ## Inputs
 Inputs are very simple. A depth surface (a floating point TIF file) and a IHO SP44 specification such
 as 'order1a', 'specialorder'.
 
-`code`
 ```
 options:
   -h, --help            show this help message and exit
