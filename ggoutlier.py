@@ -47,6 +47,8 @@
 # epsg code is no longer required.
 
 # todo ##########################################
+# need to implement tiling as some tif files are too large.
+# replace lastools with pylasfile
 
 
 import os.path
@@ -188,8 +190,11 @@ def process2(filename, args):
 	#####################################
 	#####################################
 	#VERSION 2 of ENGINE to find OUTLIERS
+	# tile the file so we are good for memory
+	
 	deltazfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_DeltaZ.tif")
 	standard.computeDeltaZ(regionalfilename, depthfilename, deltazfilename)
+
 	log ("Created DeltaZ TIF file for validation of ALL depths: %s " % (deltazfilename))
 	#load the tif file...	
 	with rasterio.open(deltazfilename) as deltazsrc:

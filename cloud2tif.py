@@ -14,6 +14,46 @@ from rasterio.crs import CRS
 from scipy.signal import medfilt
 from scipy.signal import medfilt2d
 
+
+
+def get_tiles(ds, tile_width, tile_height, overlap):
+	nols, nrows = ds.meta['width'], ds.meta['height']
+	xstep = tile_width - overlap
+	ystep = tile_height - overlap
+	for x in range(0, nols, xstep):
+		if x + tile_width > nols:
+			x = nols - tile_width
+		for y in range(0, nrows, ystep):
+			if y + tile_height > nrows:
+				y = nrows - tile_height
+			window = windows.Window(x, y, tile_width, tile_height)
+			transform = windows.transform(window, ds.transform)
+			yield window, transform
+
+def tileraster(filename, tilewidth, tileheight, tiloverlap):
+	'''use rasterio to tile a file into smaller manageable chunks'''
+
+	in_path = '/content/drive/MyDrive/Raster_Dataset_Airports/Spacenet'
+	input_filename = 'Minsk.tif'
+
+	out_path = 'Minsk_Tiles'
+	output_filename = 'Minsk_{}-{}.tif'
+
+	tile_width = 512
+	tile_height = 512
+	overlap = 128
+
+	with rio.open(os.path.join(in_path, input_filename)) as src:
+	metadata = src.meta.copy()
+
+	for window, transform in get_tiles(src, tile_width, tile_height, overlap):
+		metadata['transform'] = transform
+		metadata['width'], metadata['height'] = window.width, window.height
+		out_filepath = os.path.join(out_path, output_filename.format(window.col_off, window.row_off))
+		
+		with rio.open(out_filepath, 'w', **metadata) as dst:
+			dst.write(src.read(window=window))
+			
 ###############################################################################
 def getWKT(filename):
 		
