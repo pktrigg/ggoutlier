@@ -8,8 +8,9 @@
 			"stopOnEntry": false,
 			"program": "${file}",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-i", "Y:/Personal_Working_Folder/pk/From_Joana/GGOutliers_Results/Session/G02P2/QC/Rasters"]
+			"args": ["-i", "Y:/subsea-cloud/ggtools/kmallclean/SI1026_A"]
 		}
 	]
 }
 
+// "args": ["-i", "Y:/Personal_Working_Folder/pk/From_Joana/GGOutliers_Results/Session/G02P2/QC/Rasters"]

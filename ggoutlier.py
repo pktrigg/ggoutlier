@@ -10,7 +10,7 @@
 # pip install pyshp
 # pip install scikit-learn
 # pip install rasterio
-
+# pip install numpy #must be 1.26 or better
 
 #done##########################################
 # load a laz file
@@ -49,6 +49,7 @@
 # todo ##########################################
 # need to implement tiling as some tif files are too large.
 # replace lastools with pylasfile
+# fix word wrapping
 
 
 import os.path
@@ -102,17 +103,8 @@ def main():
 		matches = fileutils.findFiles2(False, args.inputfile, "*.tif")
 
 	if len(matches) == 0:
-		log("oops, no files found to process, quitting")
+		print("oops, no files found to process, quitting")
 		exit(0)
-
-	#make an output folder
-	if len(args.odir) == 0:
-		args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
-	odir = os.path.join(os.path.dirname(matches[0]), args.odir)
-	makedirs(odir)
-
-	logfilename = os.path.join(odir,"GGOutlier_log.txt").replace('\\','/')
-	logging.basicConfig(filename = logfilename, level=logging.INFO)
 
 	#get the WKT from the TIF file and add it to the args so we can make available....
 	WKT = cloud2tif.getWKT(matches[0])
@@ -123,31 +115,46 @@ def main():
 		args.epsg = str(geodetic.wkt2epsg(wkt=WKT))
 	#add the parameters to the args object
 	geo = geodetic.geodesy(EPSGCode=args.epsg, wkt=WKT)
-	log("EPSGCode for geodetic conversions: %s" % (args.epsg))
-	
-	log("Configuration: %s" % (str(args)))
-	log("Output Folder: %s" % (odir))
-	log("GGOutlier Version: 2.01")
-	log("GGOutlier started at: %s" % (datetime.now()))
-	log("Username: %s" %(os.getlogin()))
-	log("Computer: %s" %(os.environ['COMPUTERNAME']))
-	log("Number of CPUs %d" %(mp.cpu_count()))	
 
 	# args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
 	for file in matches:
+
+		#make an output folder
+		if len(args.odir) == 0:
+			args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
+		odir = os.path.join(os.path.dirname(file), args.odir)
+		args.odir = odir
+		makedirs(odir)
+
+		logfilename = os.path.join(odir,"GGOutlier_log.txt").replace('\\','/')
+		logging.basicConfig(filename = logfilename, level=logging.INFO)
+		log("Output Folder: %s" % (odir))
+		log("EPSGCode for geodetic conversions: %s" % (args.epsg))
+		
+		log("Configuration: %s" % (str(args)))
+		log("GGOutlier Version: 2.01")
+		log("GGOutlier started at: %s" % (datetime.now()))
+		log("Username: %s" %(os.getlogin()))
+		log("Computer: %s" %(os.environ['COMPUTERNAME']))
+		log("Number of CPUs %d" %(mp.cpu_count()))	
+		log("QC to Survey Standard: %s" % (args.standard))
+		iho = ggmbesstandard.sp44()
+		standard = iho.loadstandard(args.standard)
+		log("Survey_Standard: %s" %(standard.details()))
+
 		#skip the file if its the same as the uncertianty file name
 		if os.path.basename(file) == os.path.basename(args.uncertaintyfilename):
 			continue
 
-		args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
+		# args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
 		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 		# makedirs(odir)
 		# process(file, args)
 
 		# args.odir = str("GGOutlier_%s_V2" % (time.strftime("%Y%m%d-%H%M%S")))
-		odir = os.path.join(os.path.dirname(matches[0]), args.odir)
-		makedirs(odir)
+		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
+		# makedirs(odir)
 		process2(file, args)
 
 		log("QC Duration:%.3fs" % (time.time() - start_time))
@@ -159,118 +166,95 @@ def main():
 def process2(filename, args):
 	'''we will try to find outliers using fast array matrix processing.'''
 
-	#RAW save as a tif file so we can easily view in GIS...
-	#we need to make a regional grid which uses the nearest neighbours, so make this 3 times larger than the source grid.  this means 1 pixel each side of the current point
-	regionalfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_RegionalDepth.tif")
-	fname = cloud2tif.smoothtif(filename, regionalfilename, near=int(args.near))
-	log ("Created REGIONAL TIF file for IHO validation: %s " % (fname))
-
-	depthfilename = filename
-	log("Processing file: %s" % (filename))
-
-	log("QC to Survey Standard: %s" % (args.standard))
-	iho = ggmbesstandard.sp44()
-	standard = iho.loadstandard(args.standard)
-	log("Survey_Standard: %s" %(standard.details()))
-	outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_TVU_Allowable.tif")
-	allowabletvufilename = standard.computeTVUSurface(filename, outfilename)
-	if os.path.exists(args.uncertaintyfilename):
-		outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_TVU_Barometer.tif")
-		standard.computeTVUBarometer(allowabletvufilename, args.uncertaintyfilename, outfilename)
-		log ("Created TVU Barometer TIF file for validation: %s " % (outfilename))
-
-	#load the python proj projection object library if the user has requested it
-	# geo = geodetic.geodesy(args.epsg)
-	# log("EPSGCode for geodetic conversions: %s" % (args.epsg))
-
-	pingcounter = 0
-	beamcountarray = 0
-	# ZSCALE = float(args.zscale) # we might prefer 5 for this as this is how we like to 'look' for spikes in our data.  this value exaggerates the Z values thereby placing more emphasis on the Z than then X,Y
+	# if os.path.exists(args.uncertaintyfilename):
+	# 	outfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_TVU_Barometer.tif")
+	# 	standard.computeTVUBarometer(allowabletvufilename, args.uncertaintyfilename, outfilename)
+	# 	log ("Created TVU Barometer TIF file for validation: %s " % (outfilename))
 
 	#####################################
 	#####################################
 	#VERSION 2 of ENGINE to find OUTLIERS
 	# tile the file so we are good for memory
-	
-	deltazfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_DeltaZ.tif")
-	standard.computeDeltaZ(regionalfilename, depthfilename, deltazfilename)
 
-	log ("Created DeltaZ TIF file for validation of ALL depths: %s " % (deltazfilename))
-	#load the tif file...	
-	with rasterio.open(deltazfilename) as deltazsrc:
-		band1 = deltazsrc.read(1)
-		z = band1.flatten()
-		# print('Band1 has shape', band1.shape)
-		height = band1.shape[0]
-		width = band1.shape[1]
-		cols, rows = np.meshgrid(np.arange(width), np.arange(height))
-		xs, ys = rasterio.transform.xy(deltazsrc.transform, rows, cols)
-		xs = np.float32(xs)
-		ys = np.float32(ys)
-		x = np.array(xs).flatten()
-		y = np.array(ys).flatten()
-		print('Array Size', x.shape)
-		xyz = np.stack((x,y,z), axis=1, dtype=np.float32)
-		NODATA = deltazsrc.nodatavals[0]
-		SRCRESOLUTION = deltazsrc.res[0]
-		#remove the NODATA values
-		xyz = xyz[np.all(xyz != NODATA, axis=1)]
-	deltazsrc.close()
-	#garbage collect
-	gc.collect()	
+	# status, filename = fileutils.copyfile(filename, os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename)))
+					
+	#get size and resolution...
+	log("Processing file: %s" % (filename))
+	pixels, SRCRESOLUTION = cloud2tif.getsize(filename)
 
-	outliersfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_Outliers.tif")
-	outliersfilename, xydz = standard.findoutliers(allowabletvufilename, deltazfilename, outliersfilename)
+	tilefolder = cloud2tif.tileraster(filename, args.odir, tilewidth = 2048, tileheight = 2048, tileoverlap= 0)
+	matches = fileutils.findFiles2(False, tilefolder, "*.tif")
 
-	# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
-	# if they are close then we can re-accept them
-	log ("Validating candidates against TVU standard")
-	rio = rasterio.open(regionalfilename)
-	depthio = rasterio.open(depthfilename)
-
-	outlieridx = 0
+	#now we can process each tile in turn...
 	confirmedoutliers = []
 	confirmedinliers = []
-
-	# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
 	ptout = []
-	radius = 2 #the mask is set to 5 so we use 2 each side of central point.  this means we will skip outlier detection 2 pixels from the edge of the raster
-	mask = []
-	for x in range(-radius, radius):
-		for y in range(-radius, radius):
-			mask.append([(x * SRCRESOLUTION), (y * SRCRESOLUTION)])
-	npmask = np.asarray(mask)
+	originalfilename = filename
+	for filename in matches:
+		depthfilename = filename
+		log("Processing Tile: %s" % (filename))
+		#we need to make a regional grid which uses the nearest neighbours, so make this 3 times larger than the source grid.  this means 1 pixel each side of the current point
+		regionalfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_RegionalDepth.tif")
+		makedirs(os.path.dirname(regionalfilename))
+		fname = cloud2tif.smoothtif(filename, regionalfilename, near=int(args.near))
+		log ("Tiled Created REGIONAL TIF file for IHO validation: %s " % (fname))
 
-	for idx, pt in enumerate(xydz):
-		npmaskrealworld = np.array(npmask)
-		npmaskrealworld[:,0] += pt[0]
-		npmaskrealworld[:,1] += pt[1]
+		# log("QC to Survey Standard: %s" % (args.standard))
+		iho = ggmbesstandard.sp44()
+		standard = iho.loadstandard(args.standard)
+		# log("Survey_Standard: %s" %(standard.details()))
+		outfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_TVU_Allowable.tif")
+		allowabletvufilename = standard.computeTVUSurface(filename, outfilename)
 
-		# mask = []
-		# for x in range(-radius, radius):
-		# 	for y in range(-radius, radius):
-		# 		mask.append([pt[0] + (x * SRCRESOLUTION), pt[1] + (y * SRCRESOLUTION)])
-		
-		if rio.nodatavals[0] in list(rio.sample(npmaskrealworld)):
-		# if rio.nodatavals[0] in list(rio.sample(mask)):
-			#this is an edge case so drop it
-			confirmedinliers.append(pt)
-		else:
-			#this is a real outlier so keep it
-			confirmedoutliers.append(pt)
-			griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
-			depth = next(depthio.sample([(pt[0], pt[1])]))[0]
-			tvu = standard.gettvuat(griddepth)
-			deltaz = abs(pt[2])
-			ptout.append([pt[0], pt[1], depth, deltaz, tvu, griddepth])
+		deltazfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_DeltaZ.tif")
+		standard.computeDeltaZ(regionalfilename, depthfilename, deltazfilename)
 
-	log ("Points checked: %s" % (f'{len(xyz):,}'))
+		log ("Created DeltaZ TIF file for validation of ALL depths: %s " % (deltazfilename))
+
+		outliersfilename = os.path.join(os.path.dirname(filename),  os.path.splitext(os.path.basename(filename))[0] + "_Outliers.tif")
+		outliersfilename, xydz = standard.findoutliers(allowabletvufilename, deltazfilename, outliersfilename)
+
+		# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
+		# if they are close then we can re-accept them
+		log ("Validating candidates against TVU standard")
+		rio = rasterio.open(regionalfilename)
+		depthio = rasterio.open(depthfilename)
+
+		# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
+		radius = 2 #the mask is set to 5 so we use 2 each side of central point.  this means we will skip outlier detection 2 pixels from the edge of the raster
+		mask = []
+		for x in range(-radius, radius):
+			for y in range(-radius, radius):
+				mask.append([(x * SRCRESOLUTION), (y * SRCRESOLUTION)])
+		npmask = np.asarray(mask)
+
+		for idx, pt in enumerate(xydz):
+			npmaskrealworld = np.array(npmask)
+			npmaskrealworld[:,0] += pt[0]
+			npmaskrealworld[:,1] += pt[1]
+
+			if rio.nodatavals[0] in list(rio.sample(npmaskrealworld)):
+			# if rio.nodatavals[0] in list(rio.sample(mask)):
+				#this is an edge case so drop it
+				confirmedinliers.append(pt)
+			else:
+				#this is a real outlier so keep it
+				confirmedoutliers.append(pt)
+				griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
+				depth = next(depthio.sample([(pt[0], pt[1])]))[0]
+				tvu = standard.gettvuat(griddepth)
+				deltaz = abs(pt[2])
+				ptout.append([pt[0], pt[1], depth, deltaz, tvu, griddepth])
+
+	log ("Points checked: %s" % (f'{pixels:,}'))
+	# log ("Points checked: %s" % (f'{len(xyz):,}'))
 	log ("Points outside specification: %s" % (f'{len(ptout):,}'))
-	if len(xyz) > 0:
-		log ("Percentage outside specification: %.7f" % (100 * (len(ptout)/ len(xyz))))
+	if pixels > 0:
+		log ("Percentage outside specification: %.7f" % (100 * (len(ptout)/ pixels)))
 
 	#write the outliers to a point SHAPE file
-	shpfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".shp")
+	shpfilename = os.path.join(args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".shp")
+	# shpfilename = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".shp")
 	w = shapefile.Writer(shpfilename)
 	w.field('DeltaZ', 'N',8,3) # 8 byte floats, 3 decimal places
 	w.field('AllowedTVU', 'N',8,3)
@@ -288,7 +272,7 @@ def process2(filename, args):
 	# cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg, args.wkt)
 
 	#OUTLIERS reporting...
-	outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".txt")
+	outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".txt")
 	np.savetxt(outfile, ptout, fmt='%.4f', delimiter=',', newline='\n')
 	log ("Created TXT file of outliers: %s " % (outfile))
 	#write the outliers to a point cloud laz file
@@ -699,3 +683,27 @@ if __name__ == "__main__":
 ############################################################
 ############################################################
 ############################################################
+
+	# with rasterio.open(deltazfilename) as deltazsrc:
+		# pixels = deltazsrc.height * deltazsrc.width
+		# band1 = deltazsrc.read(1)
+	# 	z = band1.flatten()
+	# 	# print('Band1 has shape', band1.shape)
+		# height = band1.shape[0]
+		# width = band1.shape[1]
+	# 	cols, rows = np.meshgrid(np.arange(width), np.arange(height))
+	# 	xs, ys = rasterio.transform.xy(deltazsrc.transform, rows, cols)
+	# 	xs = np.float32(xs)
+	# 	ys = np.float32(ys)
+	# 	x = np.array(xs).flatten()
+	# 	y = np.array(ys).flatten()
+	# 	print('Array Size', x.shape)
+	# 	xyz = np.stack((x,y,z), axis=1)
+	# 	# xyz = np.stack((x,y,z), axis=1, dtype=np.float32)
+	# 	NODATA = deltazsrc.nodatavals[0]
+		# SRCRESOLUTION = deltazsrc.res[0]
+	# 	#remove the NODATA values
+	# 	xyz = xyz[np.all(xyz != NODATA, axis=1)]
+	# deltazsrc.close()
+	# #garbage collect
+	# gc.collect()	

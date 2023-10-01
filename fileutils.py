@@ -178,7 +178,7 @@ def copyfile(srcfile, dstfile, replace=True):
 
 	if not os.path.exists(srcfile):
 		print ("source file does not exist, skipping : %s" % (srcfile))
-		return 0
+		return 0, ""
 
 	if os.path.isfile(dstfile) and replace:
 		# Handle errors while calling os.remove()
@@ -195,15 +195,15 @@ def copyfile(srcfile, dstfile, replace=True):
 
 	if os.path.exists(dstfile):
 		print ("destination file exists, skipping : %s" % (dstfile))
-		return 0
+		return 0 , dstfile
 
 	# the file does not exist so copy it.
 	try:
 		shutil.copy(srcfile, dstfile)
-		return 1
+		return 1, dstfile
 	except:
 		print("Error while copying file %s" % (dstfile))
-		return 0
+		return 0, ""
 
 ###############################################################################
 def outfilename(filename, prefix="", appendix="", extension=""):

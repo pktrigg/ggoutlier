@@ -8,21 +8,43 @@ import numpy as np
 import geodetic
 import logging
 import gc
+from itertools import product
 
 import rasterio
 from rasterio.crs import CRS
+from rasterio import windows
+
 from scipy.signal import medfilt
 from scipy.signal import medfilt2d
 
+import fileutils
 
+###############################################################################
+def getsize(filename):
+	with rasterio.open(filename) as src:
+		pixels = src.height * src.width
+		SRCRESOLUTION = src.res[0]
+	gc.collect()	
+	return pixels, SRCRESOLUTION 
 
-def get_tiles(ds, tile_width, tile_height, overlap):
-	nols, nrows = ds.meta['width'], ds.meta['height']
+###############################################################################
+def get_tiles(ds, width=256, height=256):
+    nols, nrows = ds.meta['width'], ds.meta['height']
+    offsets = product(range(0, nols, width), range(0, nrows, height))
+    big_window = windows.Window(col_off=0, row_off=0, width=nols, height=nrows)
+    for col_off, row_off in  offsets:
+        window =windows.Window(col_off=col_off, row_off=row_off, width=width, height=height).intersection(big_window)
+        transform = windows.transform(window, ds.transform)
+        yield window, transform
+
+###############################################################################
+def get_tiles2(ds, tile_width, tile_height, overlap):
+	ncols, nrows = ds.meta['width'], ds.meta['height']
 	xstep = tile_width - overlap
 	ystep = tile_height - overlap
-	for x in range(0, nols, xstep):
-		if x + tile_width > nols:
-			x = nols - tile_width
+	for x in range(0, ncols, xstep):
+		if x + tile_width > ncols:
+			x = ncols - tile_width
 		for y in range(0, nrows, ystep):
 			if y + tile_height > nrows:
 				y = nrows - tile_height
@@ -30,30 +52,25 @@ def get_tiles(ds, tile_width, tile_height, overlap):
 			transform = windows.transform(window, ds.transform)
 			yield window, transform
 
-def tileraster(filename, tilewidth, tileheight, tiloverlap):
+###############################################################################
+def tileraster(filename, odir, tilewidth = 512, tileheight = 512, tileoverlap= 10):
 	'''use rasterio to tile a file into smaller manageable chunks'''
 
-	in_path = '/content/drive/MyDrive/Raster_Dataset_Airports/Spacenet'
-	input_filename = 'Minsk.tif'
+	outfilename = os.path.basename(filename) + "_TILE_"
+	# odir = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_TILED")
+	makedirs(odir)
 
-	out_path = 'Minsk_Tiles'
-	output_filename = 'Minsk_{}-{}.tif'
+	with rasterio.open(filename) as src:
+		metadata = src.meta.copy()
 
-	tile_width = 512
-	tile_height = 512
-	overlap = 128
-
-	with rio.open(os.path.join(in_path, input_filename)) as src:
-	metadata = src.meta.copy()
-
-	for window, transform in get_tiles(src, tile_width, tile_height, overlap):
-		metadata['transform'] = transform
-		metadata['width'], metadata['height'] = window.width, window.height
-		out_filepath = os.path.join(out_path, output_filename.format(window.col_off, window.row_off))
-		
-		with rio.open(out_filepath, 'w', **metadata) as dst:
-			dst.write(src.read(window=window))
-			
+		for window, transform in get_tiles(src, tilewidth, tileheight):
+			metadata['transform'] = transform
+			metadata['width'], metadata['height'] = window.width, window.height
+			out_filepath = os.path.join(odir, outfilename + str(window.col_off) + "_" + str(window.row_off) + ".tif")
+			print(out_filepath)
+			with rasterio.open(out_filepath, 'w', **metadata) as dst:
+				dst.write(src.read(window=window))
+	return odir
 ###############################################################################
 def getWKT(filename):
 		
@@ -369,3 +386,7 @@ def	createprj(outfilename, wkt=""):
 	prj.close()
 
 ###############################################################################
+###############################################################################
+def	makedirs(odir):
+	if not os.path.isdir(odir):
+		os.makedirs(odir, exist_ok=True)

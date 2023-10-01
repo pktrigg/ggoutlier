@@ -40,21 +40,21 @@ import cloud2tif
 
 ####################################################################################################
 ####################################################################################################
-def bathyqcreport(logfilename, resultfolder):
-	'''create an bathyqc report into PDF'''
-	# resultfolder should be 5_grid
-	# logfilename should be args.inputfolder\bathyqc.log
+# def bathyqcreport(logfilename, resultfolder):
+# 	'''create an bathyqc report into PDF'''
+# 	# resultfolder should be 5_grid
+# 	# logfilename should be args.inputfolder\bathyqc.log
 
-	if not os.path.exists(resultfolder):
-		return
+# 	if not os.path.exists(resultfolder):
+# 		return
 
-	outfilename = os.path.join(resultfolder, "BathyQCReport.pdf")
-	outfilename = fileutils.createOutputFileName(outfilename)
-	myreport = REPORT("BathyQC Report", outfilename)
-	log(filename, "BathyQCReport.pdf")
-	#parse the bathyqc log file and make a summary table
-	if os.path.exists(logfilename):
-		bathyqcreportsummary(myreport, logfilename )
+# 	outfilename = os.path.join(resultfolder, "BathyQCReport.pdf")
+# 	outfilename = fileutils.createOutputFileName(outfilename)
+# 	myreport = REPORT("BathyQC Report", outfilename)
+# 	log(filename, "BathyQCReport.pdf")
+# 	#parse the bathyqc log file and make a summary table
+# 	if os.path.exists(logfilename):
+# 		bathyqcreportsummary(myreport, logfilename )
 
 
 ####################################################################################################
@@ -118,6 +118,12 @@ def reportsummary(myreport, GGOutlierlogfilename):
 			collectinformation(line, "INFO:root:EPSGCode for geodetic conversions:", "EPSG_Code", metrics)
 			collectinformation(line, "INFO:root:Percentage outside specification:", "Percentage_Outside_Specification", metrics)
 			collectinformation(line, "INFO:root:Points checked:", "Points_Checked", metrics)
+
+			msg = "INFO:root:Processing file:"
+			if msg in line:
+				line = line.replace(msg,"")
+				line = line.strip()
+				depthfilename = line
 
 			msg = "INFO:root:Created REGIONAL TIF file for IHO validation:"
 			if msg in line:
@@ -187,7 +193,8 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	myreport.addimage(image, 450)
 
 	plt.ioff()
-	dtm_dataset = rio.open(regionalfilename)
+	# dtm_dataset = rio.open(regionalfilename)
+	dtm_dataset = rio.open(depthfilename)
 	NODATA = dtm_dataset.nodatavals[0]
 	dtm_data = dtm_dataset.read(1)
 	dtm_data[dtm_data > 10000] = 0
@@ -263,7 +270,8 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	plt.title('Depth Surface With Outliers')
 	# plt.axis('on')
 	# plt.show()
-	overviewimagefilename = regionalfilename + "_hillshade.png"
+	# overviewimagefilename = regionalfilename + "_hillshade.png"
+	overviewimagefilename = depthfilename + "_hillshade.png"
 	plt.savefig(overviewimagefilename, bbox_inches='tight', dpi=640)
 	
 	myreport.addspace()
@@ -610,7 +618,6 @@ class REPORT:
 ###################################################################################################
 	def addtable(self, filename):
 
-
 		# data= [['00', '01', '02', '03', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04', '04'],
 		# ['10', '11', '12', '13', '14'],
 		# ['20', '21', '22', '23', '24'],
@@ -621,6 +628,12 @@ class REPORT:
 		# self.story.append(t)
 		# return
 
+
+		styles = getSampleStyleSheet()
+
+		style = styles["Normal"]
+		style.fontSize=6
+		# story = [Spacer(1,2*mm)]
 
 		data = []
 		with open(filename) as fp:
@@ -636,9 +649,9 @@ class REPORT:
 				line = line.replace("  ", " ")
 				line = line.replace("  ", " ")
 				words = line.split(" ")
-				data.append(words)
+				data.append([Paragraph(words[0], style), Paragraph(words[1], style)])
 
-		t=Table(data, rowHeights=None, style=None, splitByRow=1, repeatRows=0, repeatCols=0, rowSplitRange=None, spaceBefore=None, spaceAfter=None)
+		t=Table(data, rowHeights=None, style=None, splitByRow=1, repeatRows=0, repeatCols=0, rowSplitRange=None, spaceBefore=None, spaceAfter=None, colWidths=[5 * cm, 10 * cm])
 		t.setStyle(TableStyle([('FONTNAME',(0,0),(-1,0), "Helvetica-Bold")]))
 		t.setStyle(TableStyle([('FONTSIZE',(0,0),(-1,-1), 6)]))
 		t.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1), 2)]))
@@ -650,8 +663,21 @@ class REPORT:
 		t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.lightblue), ('TEXTCOLOR',(0,0),(0,0),colors.black)]))
 		# t.setStyle(TableStyle([('BACKGROUND',(1,1),(-2,-2),colors.green),
 		# ('TEXTCOLOR',(0,0),(1,-1),colors.red)]))
+		width, height = A4
+		# c = canvas.Canvas("a.pdf", pagesize=A4)
+
+		# w, h = t.wrap(width, height)
+		# table.wrapOn(c, width, height)
+		# table.drawOn(c, *coord(ml - 0.05, y + 4.6, height - h, cm))
+
+		# t.wrapOn(c, width, height)
+		# t.drawOn(c, *self.coord(1.8, 9.6, height - h, cm))
 		self.story.append(t)
 
+###################################################################################################
+	def coord(self, x, y, height, unit=1):
+		x, y = x * unit, height -  y * unit
+		return x, y
 ###################################################################################################
 	def addtitle(self, text):
 		'''write a title of text '''
