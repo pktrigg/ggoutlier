@@ -9,6 +9,8 @@
 # pip install pyproj
 # pip install pyshp
 # pip install scikit-learn
+# pip install rasterio
+
 
 #done##########################################
 # load a laz file
@@ -259,7 +261,8 @@ def process2(filename, args):
 
 	log ("Points checked: %s" % (f'{len(xyz):,}'))
 	log ("Points outside specification: %s" % (f'{len(ptout):,}'))
-	log ("Percentage outside specification: %.7f" % (100 * (len(ptout)/ len(xyz))))
+	if len(xyz) > 0:
+		log ("Percentage outside specification: %.7f" % (100 * (len(ptout)/ len(xyz))))
 
 	#write the outliers to a point SHAPE file
 	shpfilename = os.path.join(os.path.dirname(filename), args.odir, os.path.basename(filename) + "_OutlierPoints" + ".shp")

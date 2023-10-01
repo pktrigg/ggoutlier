@@ -10,6 +10,7 @@ In bathymetry, an outlier typically refers to an isolated or anomalous depth mea
 * pip install pyproj
 * pip install pyshp
 * pip install scikit-learn
+* pip install rasterio
 
 ## GGOutlier Principles
 GGOutlier is a tool developed by Guardian Geomatics to Quality Control processed a multibeam bathymetry surface, and validate a processed depth surface against a standard such as those published by IHO SP44 or HIPP. The principle is similar in methodology to a traditional  review by a surveyor-in-charge (SIC) process in which the SIC would review the depth surface by identifying outliers relative to its nearest neighours, determine if the outlier is significant and if so flag it forinvestigation.
