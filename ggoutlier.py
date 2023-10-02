@@ -39,7 +39,7 @@
 # reduce marker size in pdf report
 # improve metrics in pdf report
 # improve pdf report to show the regional surface
-# move to specific git repo
+# move to specific git repository
 # spelling errors in report
 # write out a prj file alongside the shp file to ESRI standards
 # try to improve performance by replacing open3d with numpy
@@ -49,6 +49,7 @@
 # need to implement tiling as some tif files are too large.
 # replace lastools with pylasfile
 # fix word wrapping
+# code clean up
 
 # todo ##########################################
 
@@ -70,7 +71,6 @@ import gc
 import fileutils
 import geodetic
 import cloud2tif
-# import lashelper
 import ggmbesstandard
 import pdfdocument
 import pylasfile
