@@ -13,6 +13,7 @@
 # pip install numpy #must be 1.26 or better
 # pip install matplotlib
 
+
 #done##########################################
 # load a laz file
 # compute the cloud2raster MEAN
