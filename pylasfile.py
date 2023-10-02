@@ -1,6 +1,6 @@
 #name:		  pylasfile
 #created:	   July 2017
-#by:			p.kennedy@fugro.com
+#by:			p.kennedy@guardiangeomatics.com
 #description:   python module to read and write a ASPRS LAS file natively
 #notes:		 See main at end of script for example how to use this
 #based on ASPRS LAS 1.4-R13 15 July 2013
@@ -49,7 +49,6 @@ def testwriter():
 
 	# now write some points
 	writer.hdr.PointDataRecordFormat = 10
-	pointslist = []
 	for _ in range(100):
 		# now add some random point data to the point lists
 		writer.x.append(round(random.uniform(1, 100000),6))
@@ -80,35 +79,35 @@ class laswriter:
 
 		# the lists of all the data we will populate, then write into whatever format the user desires.  
 		# these could be numpy arrays, but that introduces a dependency, so we will leave them as lists
-		self.x = []
-		self.y = []
-		self.z = []
-		self.intensity = []
-		self.returnnumber = []
-		self.numberreturns = []
-		self.scandirectionflag = []
-		self.edgeflightline = []
-		self.classification = []
-		self.scananglerank = []
-		self.userdata = []
-		self.pointsourceid = []
-		self.gpstime = []
-		self.red = []
-		self.green = []
-		self.blue = []
-		self.wavepacketdescriptorindex = []
-		self.byteoffsettowaveformdata = []
-		self.waveformpacketsize = []
-		self.returnpointwaveformlocation = []
-		self.wavex = []
-		self.wavey = []
-		self.wavez = []
-		self.nir = []
+		self.x 							= []
+		self.y 							= []
+		self.z 							= []
+		self.intensity 					= []
+		self.returnnumber 				= []
+		self.numberreturns 				= []
+		self.scandirectionflag 			= []
+		self.edgeflightline 			= []
+		self.classification 			= []
+		self.scananglerank 				= []
+		self.userdata 					= []
+		self.pointsourceid 				= []
+		self.gpstime 					= []
+		self.red 						= []
+		self.green 						= []
+		self.blue 						= []
+		self.wavepacketdescriptorindex 	= []
+		self.byteoffsettowaveformdata 	= []
+		self.waveformpacketsize 		= []
+		self.returnpointwaveformlocation= []
+		self.wavex 						= []
+		self.wavey 						= []
+		self.wavez 						= []
+		self.nir 						= []
 
-		self.classificationflags = []
-		self.scannerchannel = []
-		self.userdata = []
-		self.scanangle = []
+		self.classificationflags 		= []
+		self.scannerchannel 			= []
+		self.userdata 					= []
+		self.scanangle 					= []
 
 		self.supportedformats = self.hdr.getsuportedpointformats()
 
@@ -151,9 +150,9 @@ class laswriter:
 
 		self.hdr.NumberofVariableLengthRecords += 1
 	############################################################################
-	def writeVLR_WKT(self):
+	def writeVLR_WKT(self, wkt):
 		'''
-		compose and write a standard variable length record for the WKTY of WGS84 CRS
+		compose and write a standard variable length record for the WKT from pyproj or rasterio
 		'''
 
 		# before we write, we need to set the file pointer to the end of the VLR section , which is directly after the header block
@@ -161,14 +160,13 @@ class laswriter:
 		self.fileptr.seek(self.hdr.HeaderSize + vlrl, 0)
 
 		# now write out the vlr record
-		vlrReserved				   = 0
-		vlrUserid					 = b'LASF_Projection'
-		vlrrecordid				   = 2112
-		byte_str = 'WKT OGC COORDINATE SYSTEM'.encode('utf-8')
-		byte_str = byte_str[:32].decode('utf-8', 'ignore').encode('utf-8')
+		vlrReserved				   	= 0
+		vlrUserid					= b'LASF_Projection'
+		vlrrecordid				   	= 2112
+		byte_str 					= 'WKT OGC COORDINATE SYSTEM'.encode('utf-8')
+		byte_str 					= byte_str[:32].decode('utf-8', 'ignore').encode('utf-8')
 		vlrDescription				= byte_str 
-		vlrdata = b'GEOGCS["WGS 84",DATUM["World_Geodetic_System_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.01745329251994328,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"],AXIS["Longitude",EAST],AXIS["Latitude",NORTH]]\x00'
-		# vlrdata = b'PROJCS["WGS 84 / UTM zone 55S",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.01745329251994328,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",147],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",10000000],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AUTHORITY["EPSG","32755"]]\x00'
+		vlrdata 					= wkt.encode('utf-8')
 		vlrRecordLengthAfterHeader	= len(vlrdata)
 
 		# now we have set the file pointer to the correct spot, write the record to disc
@@ -180,7 +178,7 @@ class laswriter:
 		
 	############################################################################
 	def getVLRTotalLength(self):
-		
+		'''get the variable length record size'''
 		VLRTotalLength = 0
 		# seek to the start of the vlrdata
 		currentPosition = self.fileptr.tell()
@@ -221,7 +219,7 @@ class laswriter:
 		'''
 		compute the bounding box of all records in the list
 		'''
-		rounding = 9
+		rounding = 3 # was 9
 		zrounding = 3
 		self.hdr.MaxX = self.round_up(max(self.x), rounding)
 		self.hdr.MinX = self.round_down(min(self.x), rounding)
@@ -281,6 +279,8 @@ class laswriter:
 		if magnitude >= max_digits:
 			return (magnitude, 0)
 		frac_part = abs(x) - int_part
+		if frac_part == 0.0:
+			frac_part = 0.01
 		multiplier = 10 ** (max_digits - magnitude)
 		frac_digits = multiplier + int(multiplier * frac_part + 0.5)
 		while frac_digits % 10 == 0:
@@ -368,10 +368,10 @@ class laswriter:
 	
 		self.fixemptylists()
 
-		self.hdr.LegacyNumberofpointrecords += len(self.x)
-		self.hdr.LegacyNumberofpointsbyreturn1 += len(self.x)
-		self.hdr.Numberofpointrecords += len(self.x)
-		self.hdr.Numberofpointsbyreturn1 += len(self.x)
+		self.hdr.LegacyNumberofpointrecords 	+= len(self.x)
+		self.hdr.LegacyNumberofpointsbyreturn1 	+= len(self.x)
+		self.hdr.Numberofpointrecords 			+= len(self.x)
+		self.hdr.Numberofpointsbyreturn1 		+= len(self.x)
 		if self.hdr.lasformat == 1.2:
 			self.hdr.Offsettopointdata = self.hdr.hdr12len + self.getVLRTotalLength()
 		if self.hdr.lasformat == 1.4:
@@ -1036,69 +1036,69 @@ class lashdr:
 		self.lasformat = lasformat # default to version 1.4.
 
 		# create a default template for a V1.4 header.  We use this for writing purposes
-		self.FileSignature =					   b'LASF'
-		self.FileSourceID  =					   0
-		self.GlobalEncoding =					  17
-		self.ProjectIDGUIDdata1 =				  0
-		self.ProjectIDGUIDdata2 =				  0
-		self.ProjectIDGUIDdata3 =				  0
-		self.ProjectIDGUIDdata4 =				  b"0"
-		self.VersionMajor =						1
-		if self.lasformat == 1.2:
-			self.VersionMinor =						2
+		self.FileSignature 							= b'LASF'
+		self.FileSourceID  							= 0
+		self.GlobalEncoding 						= 17
+		self.ProjectIDGUIDdata1 					= 0
+		self.ProjectIDGUIDdata2 					= 0
+		self.ProjectIDGUIDdata3 					= 0
+		self.ProjectIDGUIDdata4 					= b"0"
+		self.VersionMajor 							= 1
+		if self.lasformat 							== 1.2:
+			self.VersionMinor 						= 2
 		else:
-			self.VersionMinor =						4			
+			self.VersionMinor 						= 4			
 
-		self.SystemIdentifier =					b'pylasfile'
-		self.GeneratingSoftware =				  b'pylasfile'
-		self.FileCreationDayofYear =			   datetime.datetime.now().timetuple().tm_yday
-		self.FileCreationYear =					datetime.datetime.now().year
-		self.HeaderSize =						  375
-		self.Offsettopointdata =				   0
-		self.NumberofVariableLengthRecords =	   0
-		self.PointDataRecordFormat =			   1
-		self.PointDataRecordLength =			   28
+		self.SystemIdentifier 						= b'pylasfile'
+		self.GeneratingSoftware 					= b'pylasfile'
+		self.FileCreationDayofYear 					= datetime.datetime.now().timetuple().tm_yday
+		self.FileCreationYear 						= datetime.datetime.now().year
+		self.HeaderSize 							= 375
+		self.Offsettopointdata 						= 0
+		self.NumberofVariableLengthRecords 			= 0
+		self.PointDataRecordFormat 					= 1
+		self.PointDataRecordLength 					= 28
 
-		self.LegacyNumberofpointrecords =		  0
-		self.LegacyNumberofpointsbyreturn1 =	   0
-		self.LegacyNumberofpointsbyreturn2 =	   0
-		self.LegacyNumberofpointsbyreturn3 =	   0
-		self.LegacyNumberofpointsbyreturn4 =	   0
-		self.LegacyNumberofpointsbyreturn5 =	   0
-		self.Xscalefactor =						1
-		self.Yscalefactor =						1
-		self.Zscalefactor =						1
+		self.LegacyNumberofpointrecords 			= 0
+		self.LegacyNumberofpointsbyreturn1 			= 0
+		self.LegacyNumberofpointsbyreturn2 			= 0
+		self.LegacyNumberofpointsbyreturn3 			= 0
+		self.LegacyNumberofpointsbyreturn4 			= 0
+		self.LegacyNumberofpointsbyreturn5 			= 0
+		self.Xscalefactor 							= 1
+		self.Yscalefactor 							= 1
+		self.Zscalefactor 							= 1
 
-		self.Xoffset =							 0
-		self.Yoffset =							 0
-		self.Zoffset =							 0
-		self.MaxX =								0
-		self.MinX =								0
-		self.MaxY =								0
-		self.MinY =								0
-		self.MaxZ =								0
-		self.MinZ =								0
+		self.Xoffset								= 0
+		self.Yoffset 								= 0
+		self.Zoffset 								= 0
+		self.MaxX 									= 0
+		self.MinX 									= 0
+		self.MaxY 									= 0
+		self.MinY 									= 0
+		self.MaxZ 									= 0
+		self.MinZ 									= 0
 
-		self.StartofWaveformDataPacketRecord =	 0
+		self.StartofWaveformDataPacketRecord 		= 0
 		self.StartoffirstExtendedVariableLengthRecord =	0
-		self.NumberofExtendedVariableLengthRecords   = 0
-		self.Numberofpointrecords =				0
-		self.Numberofpointsbyreturn1 =			 0  
-		self.Numberofpointsbyreturn2 =			 0  
-		self.Numberofpointsbyreturn3 =			 0  
-		self.Numberofpointsbyreturn4 =			 0  
-		self.Numberofpointsbyreturn5 =			 0  
+		self.NumberofExtendedVariableLengthRecords	= 0
+		self.Numberofpointrecords 					= 0
+		self.Numberofpointsbyreturn1 				= 0  
+		self.Numberofpointsbyreturn2 				= 0  
+		self.Numberofpointsbyreturn3 				= 0  
+		self.Numberofpointsbyreturn4 				= 0  
+		self.Numberofpointsbyreturn5 				= 0  
 
-		self.Numberofpointsbyreturn6 =			 0  
-		self.Numberofpointsbyreturn7 =			 0  
-		self.Numberofpointsbyreturn8 =			 0  
-		self.Numberofpointsbyreturn9 =			 0  
-		self.Numberofpointsbyreturn10 =			 0  
-		self.Numberofpointsbyreturn11 =			 0  
-		self.Numberofpointsbyreturn12 =			 0  
-		self.Numberofpointsbyreturn13 =			 0  
-		self.Numberofpointsbyreturn14 =			 0  
-		self.Numberofpointsbyreturn15 =			 0  
+		self.Numberofpointsbyreturn6 				= 0  
+		self.Numberofpointsbyreturn7 				= 0  
+		self.Numberofpointsbyreturn8 				= 0  
+		self.Numberofpointsbyreturn9 				= 0  
+		self.Numberofpointsbyreturn10 				= 0  
+		self.Numberofpointsbyreturn11 				= 0  
+		self.Numberofpointsbyreturn12 				= 0  
+		self.Numberofpointsbyreturn13 				= 0  
+		self.Numberofpointsbyreturn14 				= 0  
+		self.Numberofpointsbyreturn15 				= 0  
 
 	############################################################################
 	def __str__(self):
@@ -1285,110 +1285,110 @@ class lashdr:
 		
 			s = struct.unpack(self.hdr12fmt, data)
 
-			self.FileSignature =						s[0]
-			self.FileSourceID =						 s[1]
-			self.GlobalEncoding =					  s[2]
-			self.ProjectIDGUIDdata1 =				  s[3]
-			self.ProjectIDGUIDdata2 =				  s[4]
-			self.ProjectIDGUIDdata3 =				  s[5]
-			self.ProjectIDGUIDdata4 =				  s[6]
-			self.VersionMajor =						s[7]
-			self.VersionMinor =						s[8]
+			self.FileSignature 						= s[0]
+			self.FileSourceID 						= s[1]
+			self.GlobalEncoding 					= s[2]
+			self.ProjectIDGUIDdata1 				= s[3]
+			self.ProjectIDGUIDdata2 				= s[4]
+			self.ProjectIDGUIDdata3 				= s[5]
+			self.ProjectIDGUIDdata4 				= s[6]
+			self.VersionMajor 						= s[7]
+			self.VersionMinor 						= s[8]
 
-			self.SystemIdentifier =					s[9]
-			self.GeneratingSoftware =				  s[10]
-			self.FileCreationDayofYear =			   s[11]
-			self.FileCreationYear =					s[12]
-			self.HeaderSize =						  s[13]
-			self.Offsettopointdata =				   s[14]
-			self.NumberofVariableLengthRecords =	   s[15]
-			self.PointDataRecordFormat =			   s[16]
-			self.PointDataRecordLength =			   s[17]
+			self.SystemIdentifier 					= s[9]
+			self.GeneratingSoftware 				= s[10]
+			self.FileCreationDayofYear 				= s[11]
+			self.FileCreationYear 					= s[12]
+			self.HeaderSize 						= s[13]
+			self.Offsettopointdata 					= s[14]
+			self.NumberofVariableLengthRecords 		= s[15]
+			self.PointDataRecordFormat 				= s[16]
+			self.PointDataRecordLength 				= s[17]
 
-			self.LegacyNumberofpointrecords =		  s[18]
-			self.LegacyNumberofpointsbyreturn1 =	   s[19]
-			self.LegacyNumberofpointsbyreturn2 =	   s[20]
-			self.LegacyNumberofpointsbyreturn3 =	   s[21]
-			self.LegacyNumberofpointsbyreturn4 =	   s[22]
-			self.LegacyNumberofpointsbyreturn5 =	   s[23]
-			self.Xscalefactor =						s[24]
-			self.Yscalefactor =						s[25]
-			self.Zscalefactor =						s[26]
-			self.Xoffset =							 s[27]
+			self.LegacyNumberofpointrecords 		= s[18]
+			self.LegacyNumberofpointsbyreturn1 		= s[19]
+			self.LegacyNumberofpointsbyreturn2 		= s[20]
+			self.LegacyNumberofpointsbyreturn3 		= s[21]
+			self.LegacyNumberofpointsbyreturn4 		= s[22]
+			self.LegacyNumberofpointsbyreturn5 		= s[23]
+			self.Xscalefactor 						= s[24]
+			self.Yscalefactor 						= s[25]
+			self.Zscalefactor 						= s[26]
+			self.Xoffset 							= s[27]
 
-			self.Yoffset =							 s[28]
-			self.Zoffset =							 s[29]
-			self.MaxX =								s[30]
-			self.MinX =								s[31]
-			self.MaxY =								s[32]
-			self.MinY =								s[33]
-			self.MaxZ =								s[34]
-			self.MinZ =								s[35]
+			self.Yoffset 							= s[28]
+			self.Zoffset 							= s[29]
+			self.MaxX 								= s[30]
+			self.MinX 								= s[31]
+			self.MaxY 								= s[32]
+			self.MinY 								= s[33]
+			self.MaxZ 								= s[34]
+			self.MinZ 								= s[35]
 
 		if self.lasformat == 1.4:
 		
 			s = struct.unpack(self.hdr14fmt, data)
 
-			self.FileSignature =						s[0]
-			self.FileSourceID =						 s[1]
-			self.GlobalEncoding =					  s[2]
-			self.ProjectIDGUIDdata1 =				  s[3]
-			self.ProjectIDGUIDdata2 =				  s[4]
-			self.ProjectIDGUIDdata3 =				  s[5]
-			self.ProjectIDGUIDdata4 =				  s[6]
-			self.VersionMajor =						s[7]
-			self.VersionMinor =						s[8]
+			self.FileSignature 						= s[0]
+			self.FileSourceID 						= s[1]
+			self.GlobalEncoding 					= s[2]
+			self.ProjectIDGUIDdata1 				= s[3]
+			self.ProjectIDGUIDdata2 				= s[4]
+			self.ProjectIDGUIDdata3 				= s[5]
+			self.ProjectIDGUIDdata4 				= s[6]
+			self.VersionMajor 						= s[7]
+			self.VersionMinor 						= s[8]
 
-			self.SystemIdentifier =					s[9]
-			self.GeneratingSoftware =				  s[10]
-			self.FileCreationDayofYear =			   s[11]
-			self.FileCreationYear =					s[12]
-			self.HeaderSize =						  s[13]
-			self.Offsettopointdata =				   s[14]
-			self.NumberofVariableLengthRecords =	   s[15]
-			self.PointDataRecordFormat =			   s[16]
-			self.PointDataRecordLength =			   s[17]
+			self.SystemIdentifier 					= s[9]
+			self.GeneratingSoftware 				= s[10]
+			self.FileCreationDayofYear 				= s[11]
+			self.FileCreationYear 					= s[12]
+			self.HeaderSize 						= s[13]
+			self.Offsettopointdata 					= s[14]
+			self.NumberofVariableLengthRecords 		= s[15]
+			self.PointDataRecordFormat 				= s[16]
+			self.PointDataRecordLength 				= s[17]
 
-			self.LegacyNumberofpointrecords =		  s[18]
-			self.LegacyNumberofpointsbyreturn1 =	   s[19]
-			self.LegacyNumberofpointsbyreturn2 =	   s[20]
-			self.LegacyNumberofpointsbyreturn3 =	   s[21]
-			self.LegacyNumberofpointsbyreturn4 =	   s[22]
-			self.LegacyNumberofpointsbyreturn5 =	   s[23]
-			self.Xscalefactor =						s[24]
-			self.Yscalefactor =						s[25]
-			self.Zscalefactor =						s[26]
-			self.Xoffset =							 s[27]
+			self.LegacyNumberofpointrecords 		= s[18]
+			self.LegacyNumberofpointsbyreturn1 		= s[19]
+			self.LegacyNumberofpointsbyreturn2 		= s[20]
+			self.LegacyNumberofpointsbyreturn3 		= s[21]
+			self.LegacyNumberofpointsbyreturn4 		= s[22]
+			self.LegacyNumberofpointsbyreturn5 		= s[23]
+			self.Xscalefactor 						= s[24]
+			self.Yscalefactor 						= s[25]
+			self.Zscalefactor 						= s[26]
+			self.Xoffset 							= s[27]
 
-			self.Yoffset =							 s[28]
-			self.Zoffset =							 s[29]
-			self.MaxX =								s[30]
-			self.MinX =								s[31]
-			self.MaxY =								s[32]
-			self.MinY =								s[33]
-			self.MaxZ =								s[34]
-			self.MinZ =								s[35]
+			self.Yoffset 							= s[28]
+			self.Zoffset 							= s[29]
+			self.MaxX 								= s[30]
+			self.MinX 								= s[31]
+			self.MaxY 								= s[32]
+			self.MinY 								= s[33]
+			self.MaxZ 								= s[34]
+			self.MinZ 								= s[35]
 
-			self.StartofWaveformDataPacketRecord =	 s[36]
+			self.StartofWaveformDataPacketRecord 	= s[36]
 			self.StartoffirstExtendedVariableLengthRecord =	s[37]
-			self.NumberofExtendedVariableLengthRecords =	   s[38]
-			self.Numberofpointrecords =						s[39]
-			self.Numberofpointsbyreturn1 =					 s[40]
-			self.Numberofpointsbyreturn2 =					 s[41]
-			self.Numberofpointsbyreturn3 =					 s[42]
-			self.Numberofpointsbyreturn4 =					 s[43]
-			self.Numberofpointsbyreturn5 =					 s[44]
+			self.NumberofExtendedVariableLengthRecords = s[38]
+			self.Numberofpointrecords 				= s[39]
+			self.Numberofpointsbyreturn1 			= s[40]
+			self.Numberofpointsbyreturn2 			= s[41]
+			self.Numberofpointsbyreturn3 			= s[42]
+			self.Numberofpointsbyreturn4 			= s[43]
+			self.Numberofpointsbyreturn5 			= s[44]
 
-			self.Numberofpointsbyreturn6 =					 s[45]
-			self.Numberofpointsbyreturn7 =					 s[46]
-			self.Numberofpointsbyreturn8 =					 s[47]
-			self.Numberofpointsbyreturn9 =					 s[48]
-			self.Numberofpointsbyreturn10 =					s[49]
-			self.Numberofpointsbyreturn11 =					s[50]
-			self.Numberofpointsbyreturn12 =					s[51]
-			self.Numberofpointsbyreturn13 =					s[52]
-			self.Numberofpointsbyreturn14 =					s[53]
-			self.Numberofpointsbyreturn15 =					s[54]
+			self.Numberofpointsbyreturn6 			= s[45]
+			self.Numberofpointsbyreturn7 			= s[46]
+			self.Numberofpointsbyreturn8 			= s[47]
+			self.Numberofpointsbyreturn9 			= s[48]
+			self.Numberofpointsbyreturn10 			= s[49]
+			self.Numberofpointsbyreturn11 			= s[50]
+			self.Numberofpointsbyreturn12 			= s[51]
+			self.Numberofpointsbyreturn13 			= s[52]
+			self.Numberofpointsbyreturn14 			= s[53]
+			self.Numberofpointsbyreturn15 			= s[54]
 
 	############################################################################
 	def get_PointDataRecordFormat(self):
@@ -1415,35 +1415,35 @@ class lasreader:
 
 		# the lists of all the data we will populate, then write into whatever format the user desires.  
 		# these could be numpy arrays, but that introduces a dependency, so we will leave them as lists
-		self.x = []
-		self.y = []
-		self.z = []
-		self.intensity = []
-		self.returnnumber = []
-		self.numberreturns = []
-		self.scandirectionflag = []
-		self.edgeflightline = []
-		self.classification = []
-		self.scananglerank = []
-		self.userdata = []
-		self.pointsourceid = []
-		self.gpstime = []
-		self.red = []
-		self.green = []
-		self.blue = []
-		self.wavepacketdescriptorindex = []
-		self.byteoffsettowaveformdata = []
-		self.waveformpacketsize = []
-		self.returnpointwaveformlocation = []
-		self.wavex = []
-		self.wavey = []
-		self.wavez = []
-		self.nir = []
+		self.x 							= []
+		self.y 							= []
+		self.z 							= []
+		self.intensity 					= []
+		self.returnnumber 				= []
+		self.numberreturns 				= []
+		self.scandirectionflag 			= []
+		self.edgeflightline 			= []
+		self.classification 			= []
+		self.scananglerank 				= []
+		self.userdata 					= []
+		self.pointsourceid 				= []
+		self.gpstime 					= []
+		self.red 						= []
+		self.green 						= []
+		self.blue 						= []
+		self.wavepacketdescriptorindex 	= []
+		self.byteoffsettowaveformdata 	= []
+		self.waveformpacketsize			= []
+		self.returnpointwaveformlocation= []
+		self.wavex 						= []
+		self.wavey 						= []
+		self.wavez 						= []
+		self.nir 						= []
 
-		self.classificationflags = []
-		self.scannerchannel = []
-		self.userdata = []
-		self.scanangle = []
+		self.classificationflags 		= []
+		self.scannerchannel 			= []
+		self.userdata 					= []
+		self.scanangle 					= []
 
 	############################################################################
 	def close(self):
@@ -1491,15 +1491,15 @@ class lasreader:
 		data = self.fileptr.read(struct.calcsize(snifffmt))
 		s = struct.unpack(snifffmt, data)
 
-		FileSignature =						s[0].decode('utf-8').rstrip('\x00')
-		FileSourceID =						 s[1]
-		GlobalEncoding =					  s[2]
-		ProjectIDGUIDdata1 =				  s[3]
-		ProjectIDGUIDdata2 =				  s[4]
-		ProjectIDGUIDdata3 =				  s[5]
-		ProjectIDGUIDdata4 =				  s[6]
-		VersionMajor =						s[7]
-		VersionMinor =						s[8]
+		FileSignature 				= s[0].decode('utf-8').rstrip('\x00')
+		FileSourceID 				= s[1]
+		GlobalEncoding 				= s[2]
+		ProjectIDGUIDdata1 			= s[3]
+		ProjectIDGUIDdata2 			= s[4]
+		ProjectIDGUIDdata3 			= s[5]
+		ProjectIDGUIDdata4 			= s[6]
+		VersionMajor 				= s[7]
+		VersionMinor 				= s[8]
 
 		self.fileptr.seek(curr, 0)
 
@@ -1553,11 +1553,11 @@ class lasreader:
 		data = self.fileptr.read(vlrhdr14len)
 		s = struct.unpack(vlrhdr14fmt, data)
 
-		self.vlrReserved				   = s[0]
-		self.vlrUserid					 = s[1]
-		self.vlrrecordid				   = s[2]
-		self.vlrRecordLengthAfterHeader	= s[3]
-		self.vlrDescription				= s[4]
+		self.vlrReserved				 	= s[0]
+		self.vlrUserid					 	= s[1]
+		self.vlrrecordid				   	= s[2]
+		self.vlrRecordLengthAfterHeader		= s[3]
+		self.vlrDescription					= s[4]
 
 		# now read the variable data
 		self.vlrdata = self.fileptr.read(self.vlrRecordLengthAfterHeader)

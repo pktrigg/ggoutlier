@@ -46,12 +46,11 @@
 # tidy up the pdf report spelling
 # clean memory as we go and use 32 bit floats instead of 64bit.  this helps it a lot!
 # epsg code is no longer required.
-
-# todo ##########################################
 # need to implement tiling as some tif files are too large.
 # replace lastools with pylasfile
 # fix word wrapping
 
+# todo ##########################################
 
 import os.path
 from argparse import ArgumentParser
@@ -71,7 +70,7 @@ import gc
 import fileutils
 import geodetic
 import cloud2tif
-import lashelper
+# import lashelper
 import ggmbesstandard
 import pdfdocument
 import pylasfile
@@ -288,7 +287,7 @@ def process2(filename, args):
 	np.savetxt(outfile, ptout, fmt='%.4f', delimiter=',', newline='\n')
 	log ("Created TXT file of outliers: %s " % (outfile))
 	#write the outliers to a point cloud laz file
-	fname = lashelper.txt2las(outfile, epsg=args.epsg)
+	# fname = lashelper.txt2las(outfile, epsg=args.epsg)
 	log ("Created LAZ file of outliers: %s " % (fname))
 
 	#write to the las file using pylasfile...
@@ -297,6 +296,7 @@ def process2(filename, args):
 	pointsourceID = 1
 	writer.hdr.FileSourceID = pointsourceID
 	# write out a WGS variable length record so users know the coordinate reference system
+	writer.writeVLR_WKT(args.wkt)
 	writer.writeVLR_WGS84()
 	writer.hdr.PointDataRecordFormat = 1
 	a = np.array(ptout)
