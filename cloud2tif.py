@@ -65,6 +65,7 @@ def tileraster(filename, odir, tilewidth = 512, tileheight = 512, tileoverlap= 1
 		metadata = src.meta.copy()
 		idx = 0
 		tilecount = len(list(get_tiles(src, tilewidth, tileheight)))
+		log("Tiling into %s tiles..." % (tilecount))
 		for window, transform in get_tiles(src, tilewidth, tileheight):
 			metadata['transform'] = transform
 			metadata['width'], metadata['height'] = window.width, window.height
