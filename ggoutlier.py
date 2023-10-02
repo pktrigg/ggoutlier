@@ -123,14 +123,14 @@ def main():
 	for file in matches:
 		#make an output folder
 		if len(args.odir) == 0:
-			args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
-		odir = os.path.join(os.path.dirname(file), args.odir)
-		args.odir = odir
-		makedirs(odir)
+			args.odir = os.path.join(os.path.dirname(file), str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S"))))
+		if not os.path.isdir(args.odir):
+			args.odir = os.path.join(os.path.dirname(file), args.odir)
+		makedirs(args.odir)
 
-		logfilename = os.path.join(odir,"GGOutlier_log.txt").replace('\\','/')
+		logfilename = os.path.join(args.odir,"GGOutlier_log.txt").replace('\\','/')
 		logging.basicConfig(filename = logfilename, level=logging.INFO)
-		log("Output Folder: %s" % (odir))
+		log("Output Folder: %s" % (args.odir))
 		log("EPSGCode for geodetic conversions: %s" % (args.epsg))
 		
 		log("Configuration: %s" % (str(args)))
@@ -160,7 +160,7 @@ def main():
 		cleanup(file, args)
 		log("QC Duration:%.3fs" % (time.time() - start_time))
 		log("Creating Report...")
-		pdfdocument.GGOutlierreport(logfilename, odir)
+		pdfdocument.GGOutlierreport(logfilename, args.odir)
 		log("Report Complete")
 		log("QC complete at: %s" % (datetime.now()))	
 ############################################################
@@ -283,7 +283,8 @@ def process2(filename, args):
 	# cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg, args.wkt)
 
 	#OUTLIERS reporting...
-	outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".txt")
+	outfile = os.path.join(args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".txt")
+	# outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".txt")
 	np.savetxt(outfile, ptout, fmt='%.4f', delimiter=',', newline='\n')
 	log ("Created TXT file of outliers: %s " % (outfile))
 	#write the outliers to a point cloud laz file
@@ -291,7 +292,8 @@ def process2(filename, args):
 	log ("Created LAS file of outliers: %s " % (fname))
 
 	#write to the las file using pylasfile...
-	outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
+	outfile = os.path.join(args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
+	# outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
 	writer = pylasfile.laswriter(filename=outfile, lasformat=1.4)
 	pointsourceID = 1
 	writer.hdr.FileSourceID = pointsourceID
