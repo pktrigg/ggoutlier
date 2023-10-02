@@ -134,7 +134,7 @@ def main():
 		log("EPSGCode for geodetic conversions: %s" % (args.epsg))
 		
 		log("Configuration: %s" % (str(args)))
-		log("GGOutlier Version: 2.01")
+		log("GGOutlier Version: 3.01")
 		log("GGOutlier started at: %s" % (datetime.now()))
 		log("Username: %s" %(os.getlogin()))
 		log("Computer: %s" %(os.environ['COMPUTERNAME']))
@@ -288,7 +288,7 @@ def process2(filename, args):
 	log ("Created TXT file of outliers: %s " % (outfile))
 	#write the outliers to a point cloud laz file
 	# fname = lashelper.txt2las(outfile, epsg=args.epsg)
-	log ("Created LAZ file of outliers: %s " % (fname))
+	log ("Created LAS file of outliers: %s " % (fname))
 
 	#write to the las file using pylasfile...
 	outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
