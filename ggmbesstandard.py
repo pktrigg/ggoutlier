@@ -196,7 +196,7 @@ class standard:
 		gc.collect()	
 
 		# make outlier array of difference in deltaz and tvu.  NEGATIVE values are not outliers.  only POSITVE VALUEs are outliers
-		log("Computing outliers...")
+		# log("Computing outliers...")
 		outliersarray = np.subtract(deltazarray, tvuarray)
 		outliersarray[outliersarray==deltazNODATA] = deltazNODATA
 		outliersarray[outliersarray < 0] = 0
@@ -216,7 +216,7 @@ class standard:
 		xydz = xydz[np.all(xydz > 0.0, axis=1)]
 
 		# Write to tif, using the same profile as the source
-		log("Writing outliers to raster file: %s" % (outfilename))
+		# log("Writing outliers to raster file: %s" % (outfilename))
 		with rasterio.open(outfilename, 'w', **deltazprofile) as dst:
 			dst.write_band(1, outliersarray)
 

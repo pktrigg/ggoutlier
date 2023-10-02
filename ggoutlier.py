@@ -11,6 +11,7 @@
 # pip install scikit-learn
 # pip install rasterio
 # pip install numpy #must be 1.26 or better
+# pip install matplotlib
 
 #done##########################################
 # load a laz file
@@ -73,6 +74,8 @@ import cloud2tif
 import lashelper
 import ggmbesstandard
 import pdfdocument
+import pylasfile
+
 ###########################################################################
 def main():
 
@@ -119,7 +122,6 @@ def main():
 	# args.outlierpercentage = min(5.0, float(args.outlierpercentage))
 	start_time = time.time() # time the process
 	for file in matches:
-
 		#make an output folder
 		if len(args.odir) == 0:
 			args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
@@ -156,11 +158,19 @@ def main():
 		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 		# makedirs(odir)
 		process2(file, args)
-
+		cleanup(file, args)
 		log("QC Duration:%.3fs" % (time.time() - start_time))
 		log("Creating Report...")
 		pdfdocument.GGOutlierreport(logfilename, odir)
 		log("Report Complete")
+		log("QC complete at: %s" % (datetime.now()))	
+############################################################
+def cleanup(file, args):
+	'''clean up the odir folder '''
+	#remove the tif files
+	matches = fileutils.findFiles2(False, args.odir, "*.tif")
+	for file in matches:
+		os.remove(file)
 
 ############################################################
 def process2(filename, args):
@@ -190,14 +200,14 @@ def process2(filename, args):
 	confirmedinliers = []
 	ptout = []
 	originalfilename = filename
-	for filename in matches:
+	for tileidx, filename in enumerate(matches):
 		depthfilename = filename
-		log("Processing Tile: %s" % (filename))
+		# log("Processing Tile: %s" % (filename))
 		#we need to make a regional grid which uses the nearest neighbours, so make this 3 times larger than the source grid.  this means 1 pixel each side of the current point
 		regionalfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_RegionalDepth.tif")
 		makedirs(os.path.dirname(regionalfilename))
 		fname = cloud2tif.smoothtif(filename, regionalfilename, near=int(args.near))
-		log ("Tiled Created REGIONAL TIF file for IHO validation: %s " % (fname))
+		# log ("Tiled Created REGIONAL TIF file for IHO validation: %s " % (fname))
 
 		# log("QC to Survey Standard: %s" % (args.standard))
 		iho = ggmbesstandard.sp44()
@@ -209,14 +219,14 @@ def process2(filename, args):
 		deltazfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_DeltaZ.tif")
 		standard.computeDeltaZ(regionalfilename, depthfilename, deltazfilename)
 
-		log ("Created DeltaZ TIF file for validation of ALL depths: %s " % (deltazfilename))
+		# log ("Created DeltaZ TIF file for validation of ALL depths: %s " % (deltazfilename))
 
 		outliersfilename = os.path.join(os.path.dirname(filename),  os.path.splitext(os.path.basename(filename))[0] + "_Outliers.tif")
 		outliersfilename, xydz = standard.findoutliers(allowabletvufilename, deltazfilename, outliersfilename)
 
 		# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
 		# if they are close then we can re-accept them
-		log ("Validating candidates against TVU standard")
+		# log ("Validating candidates against TVU standard")
 		rio = rasterio.open(regionalfilename)
 		depthio = rasterio.open(depthfilename)
 
@@ -245,6 +255,8 @@ def process2(filename, args):
 				tvu = standard.gettvuat(griddepth)
 				deltaz = abs(pt[2])
 				ptout.append([pt[0], pt[1], depth, deltaz, tvu, griddepth])
+		#tell the user something is happening
+		update_progress("Analysing Tiles...", tileidx / len(matches))
 
 	log ("Points checked: %s" % (f'{pixels:,}'))
 	# log ("Points checked: %s" % (f'{len(xyz):,}'))
@@ -278,6 +290,19 @@ def process2(filename, args):
 	#write the outliers to a point cloud laz file
 	fname = lashelper.txt2las(outfile, epsg=args.epsg)
 	log ("Created LAZ file of outliers: %s " % (fname))
+
+	#write to the las file using pylasfile...
+	outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
+	writer = pylasfile.laswriter(filename=outfile, lasformat=1.4)
+	pointsourceID = 1
+	writer.hdr.FileSourceID = pointsourceID
+	# write out a WGS variable length record so users know the coordinate reference system
+	writer.writeVLR_WGS84()
+	writer.hdr.PointDataRecordFormat = 1
+	a = np.array(ptout)
+	# columns = zip(*ptout) #transpose rows to columns
+	writer.writepointlist(a[:,0],a[:,1],a[:,2])
+	writer.close()	
 
 	# msg = "GGOutlier complete. outlier_cloud.points
 	log("QC complete at: %s" % (datetime.now()))

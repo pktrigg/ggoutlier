@@ -1,4 +1,5 @@
 import os
+import sys
 import math
 import rasterio
 from rasterio.transform import from_origin
@@ -62,12 +63,15 @@ def tileraster(filename, odir, tilewidth = 512, tileheight = 512, tileoverlap= 1
 
 	with rasterio.open(filename) as src:
 		metadata = src.meta.copy()
-
+		idx = 0
+		tilecount = len(list(get_tiles(src, tilewidth, tileheight)))
 		for window, transform in get_tiles(src, tilewidth, tileheight):
 			metadata['transform'] = transform
 			metadata['width'], metadata['height'] = window.width, window.height
 			out_filepath = os.path.join(odir, outfilename + str(window.col_off) + "_" + str(window.row_off) + ".tif")
-			print(out_filepath)
+			idx += 1
+			update_progress("Tiling to conserve memory...", idx / tilecount)
+			# print(out_filepath)
 			with rasterio.open(out_filepath, 'w', **metadata) as dst:
 				dst.write(src.read(window=window))
 	return odir
@@ -390,3 +394,12 @@ def	createprj(outfilename, wkt=""):
 def	makedirs(odir):
 	if not os.path.isdir(odir):
 		os.makedirs(odir, exist_ok=True)
+###############################################################################
+def update_progress(job_title, progress):
+	'''progress value should be a value between 0 and 1'''
+	length = 20 # modify this to change the length
+	block = int(round(length*progress))
+	msg = "\r{0}: [{1}] {2}%".format(job_title, "#"*block + "-"*(length-block), round(progress*100, 2))
+	if progress >= 1: msg += " DONE\r\n"
+	sys.stdout.write(msg)
+	sys.stdout.flush()

@@ -113,7 +113,45 @@ class laswriter:
 		self.supportedformats = self.hdr.getsuportedpointformats()
 
 	############################################################################
+	def writepointlist(self, x, y, z):
+		self.x = x
+		self.y = y
+		self.z = z
+		self.computebbox_offsets()
+		self.writepoints()
+
+		# we need to write the header after writing records so we can update the bounding box, point format etc 
+		self.writeHeader()
+
+	############################################################################
 	def writeVLR_WGS84(self):
+		'''
+		compose and write a standard variable length record for the WKTY of WGS84 CRS
+		'''
+
+		# before we write, we need to set the file pointer to the end of the VLR section , which is directly after the header block
+		vlrl = self.getVLRTotalLength()
+		self.fileptr.seek(self.hdr.HeaderSize + vlrl, 0)
+
+		# now write out the vlr record
+		vlrReserved				   = 0
+		vlrUserid					 = b'LASF_Projection'
+		vlrrecordid				   = 2112
+		byte_str = 'WKT OGC COORDINATE SYSTEM'.encode('utf-8')
+		byte_str = byte_str[:32].decode('utf-8', 'ignore').encode('utf-8')
+		vlrDescription				= byte_str 
+		vlrdata = b'GEOGCS["WGS 84",DATUM["World_Geodetic_System_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.01745329251994328,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"],AXIS["Longitude",EAST],AXIS["Latitude",NORTH]]\x00'
+		# vlrdata = b'PROJCS["WGS 84 / UTM zone 55S",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.01745329251994328,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",147],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",10000000],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AUTHORITY["EPSG","32755"]]\x00'
+		vlrRecordLengthAfterHeader	= len(vlrdata)
+
+		# now we have set the file pointer to the correct spot, write the record to disc
+		record_struct = struct.Struct(self.hdr.vlrhdr14fmt)
+		self.fileptr.write(record_struct.pack(vlrReserved, vlrUserid, vlrrecordid, vlrRecordLengthAfterHeader, vlrDescription))
+		self.fileptr.write(vlrdata)
+
+		self.hdr.NumberofVariableLengthRecords += 1
+	############################################################################
+	def writeVLR_WKT(self):
 		'''
 		compose and write a standard variable length record for the WKTY of WGS84 CRS
 		'''
