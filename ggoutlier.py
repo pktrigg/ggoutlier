@@ -191,7 +191,7 @@ def process2(filename, args):
 	log("Processing file: %s" % (filename))
 	pixels, SRCRESOLUTION = cloud2tif.getsize(filename)
 
-	tilefolder = cloud2tif.tileraster(filename, args.odir, tilewidth = 2048, tileheight = 2048, tileoverlap= 0)
+	tilefolder = cloud2tif.tileraster(filename, args.odir, tilewidth = 4096, tileheight = 4096, tileoverlap= 0)
 	matches = fileutils.findFiles2(False, tilefolder, "*.tif")
 
 	#now we can process each tile in turn...
@@ -388,7 +388,7 @@ def	log(msg, error = False, printmsg=True):
 
 ###############################################################################
 if __name__ == "__main__":
-		main()
+	main()
 
 	########################v#######################################################
 	# log("Statistical outlier removal")
