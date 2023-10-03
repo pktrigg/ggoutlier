@@ -63,6 +63,7 @@ def tileraster(filename, odir, tilewidth = 512, tileheight = 512, tileoverlap= 1
 
 	with rasterio.open(filename) as src:
 		metadata = src.meta.copy()
+		log("Source file size is %d wide * %d high == %d pixels.  This is potentially too large for your system memory so we will tile it.." % (metadata['width'], metadata['height'], metadata['width'] * metadata['height']))
 		idx = 0
 		tilecount = len(list(get_tiles(src, tilewidth, tileheight)))
 		log("Tiling into %s tiles..." % (tilecount))

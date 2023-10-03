@@ -31,8 +31,10 @@ from functools import partial
 import PIL
 import rasterio as rio
 from rasterio.plot import show
+from rasterio.enums import Resampling
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 import fileutils
@@ -196,7 +198,12 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	# dtm_dataset = rio.open(regionalfilename)
 	dtm_dataset = rio.open(depthfilename)
 	NODATA = dtm_dataset.nodatavals[0]
-	dtm_data = dtm_dataset.read(1)
+	downscale_factor = max(math.ceil(dtm_dataset.width / 2048),1)
+	dtm_data = dtm_dataset.read(1, out_shape=(
+            dtm_dataset.count,
+            int(dtm_dataset.height / downscale_factor),
+            int(dtm_dataset.width / downscale_factor)
+        ), resampling=Resampling.bilinear)
 	dtm_data[dtm_data > 10000] = 0
 	dtm_data[dtm_data <= -999] = 0
 

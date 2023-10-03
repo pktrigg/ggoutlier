@@ -88,7 +88,7 @@ def main():
 	parser.add_argument('-near', 	action='store', 		default="5",		dest='near',			help='(optional) ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neighbours can be calculated. [Default:5]')
 	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='(optional) Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + ''.join(msg) + ' [Default:order1a]' )
 	parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='(optional) Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
-	# parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [Default:false]')
+	parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [Default:false]')
 
 	matches = []
 	args = parser.parse_args()
@@ -157,14 +157,13 @@ def main():
 		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 		# makedirs(odir)
 		process2(file, args)
-		cleanup(file, args)
 		log("QC Duration:%.3fs" % (time.time() - start_time))
 		log("Creating Report...")
 		pdfdocument.GGOutlierreport(logfilename, args.odir)
 		log("Report Complete")
 		log("QC complete at: %s" % (datetime.now()))	
 ############################################################
-def cleanup(file, args):
+def cleanup(args):
 	'''clean up the odir folder '''
 	#remove the tif files
 	matches = fileutils.findFiles2(False, args.odir, "*.tif")
@@ -254,8 +253,11 @@ def process2(filename, args):
 				tvu = standard.gettvuat(griddepth)
 				deltaz = abs(pt[2])
 				ptout.append([pt[0], pt[1], depth, deltaz, tvu, griddepth])
+		
+		rio.close()
+		depthio.close()
 		#tell the user something is happening
-		update_progress("Analysing Tiles...", tileidx / len(matches))
+		update_progress("Analysing Tiles for Outliers...", tileidx / len(matches))
 
 	log ("Points checked: %s" % (f'{pixels:,}'))
 	# log ("Points checked: %s" % (f'{len(xyz):,}'))
@@ -264,7 +266,7 @@ def process2(filename, args):
 		log ("Percentage outside specification: %.7f" % (100 * (len(ptout)/ pixels)))
 
 	#write the outliers to a point SHAPE file
-	shpfilename = os.path.join(args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".shp")
+	shpfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_OutlierPoints" + ".shp")
 	# shpfilename = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".shp")
 	w = shapefile.Writer(shpfilename)
 	w.field('DeltaZ', 'N',8,3) # 8 byte floats, 3 decimal places
@@ -283,16 +285,15 @@ def process2(filename, args):
 	# cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg, args.wkt)
 
 	#OUTLIERS reporting...
-	outfile = os.path.join(args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".txt")
+	outfile = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_OutlierPoints" + ".txt")
 	# outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".txt")
 	np.savetxt(outfile, ptout, fmt='%.4f', delimiter=',', newline='\n')
 	log ("Created TXT file of outliers: %s " % (outfile))
 	#write the outliers to a point cloud laz file
 	# fname = lashelper.txt2las(outfile, epsg=args.epsg)
-	log ("Created LAS file of outliers: %s " % (fname))
 
 	#write to the las file using pylasfile...
-	outfile = os.path.join(args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
+	outfile = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_OutlierPoints" + ".las")
 	# outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
 	writer = pylasfile.laswriter(filename=outfile, lasformat=1.4)
 	pointsourceID = 1
@@ -305,6 +306,57 @@ def process2(filename, args):
 	# columns = zip(*ptout) #transpose rows to columns
 	writer.writepointlist(a[:,0],a[:,1],a[:,2])
 	writer.close()	
+	log ("Created LAS file of outliers: %s " % (outfile))
+
+	#clean up the tiles...
+	cleanup(args)
+
+	log("Creating a regional file for QC purposes")
+	try:
+		regionalfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_RegionalDepth.tif")
+		makedirs(os.path.dirname(regionalfilename))
+		fname = cloud2tif.smoothtif(originalfilename, regionalfilename, near=int(args.near))
+		log("Creating a regional file for QC purposes: %s" % (fname))
+	except:			
+		log("Error while creating regional file. Maybe memory is an issue?")
+
+	if args.verbose:
+		#load the tif file...	
+		with rasterio.open(originalfilename) as src:
+			band1 = src.read(1)
+			z = band1.flatten() 
+			height = band1.shape[0]
+			width = band1.shape[1]
+			cols, rows = np.meshgrid(np.arange(width), np.arange(height))
+			xs, ys = rasterio.transform.xy(src.transform, rows, cols)
+			x = np.array(xs).flatten()
+			y = np.array(ys).flatten()
+			xyz = np.stack((x,y,z), axis=1)
+			NODATA = src.nodatavals[0]
+			xyz = xyz[np.all(xyz != NODATA, axis=1)]
+
+		src.close()
+		#write to the las file using pylasfile...
+		outfile = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_RAWPoints" + ".las")
+		writer = pylasfile.laswriter(filename=outfile, lasformat=1.4)
+		pointsourceID = 1
+		writer.hdr.FileSourceID = pointsourceID
+		# write out a WGS variable length record so users know the coordinate reference system
+		writer.writeVLR_WKT(args.wkt)
+		writer.writeVLR_WGS84()
+		writer.hdr.PointDataRecordFormat = 1
+		a = np.array(xyz)
+		# columns = zip(*ptout) #transpose rows to columns
+		writer.writepointlist(a[:,0],a[:,1],a[:,2])
+		writer.close()	
+		log ("Created LAS file of outliers: %s " % (outfile))
+
+		#RAW report on RAW POINTS
+		# outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_RawPoints.txt")
+		# log ("Creating raw laz file of input raw points: %s " % (outfile))
+		# np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
+		# fname = lashelper.txt2las(outfile, epsg=args.epsg)
+		# fileutils.deletefile(outfile)
 
 	# msg = "GGOutlier complete. outlier_cloud.points
 	log("QC complete at: %s" % (datetime.now()))
