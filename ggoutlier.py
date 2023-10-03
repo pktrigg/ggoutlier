@@ -336,6 +336,7 @@ def process2(filename, args):
 			xyz = xyz[np.all(xyz != NODATA, axis=1)]
 
 		src.close()
+		log ("Creating LAS file of RAW points...")
 		#write to the las file using pylasfile...
 		outfile = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_RAWPoints" + ".las")
 		writer = pylasfile.laswriter(filename=outfile, lasformat=1.4)
@@ -349,16 +350,8 @@ def process2(filename, args):
 		# columns = zip(*ptout) #transpose rows to columns
 		writer.writepointlist(a[:,0],a[:,1],a[:,2])
 		writer.close()	
-		log ("Created LAS file of outliers: %s " % (outfile))
+		log ("Created LAS file of RAW points: %s " % (outfile))
 
-		#RAW report on RAW POINTS
-		# outfile = os.path.join(os.path.dirname(filename), args.odir, os.path.splitext(os.path.basename(filename))[0] + "_RawPoints.txt")
-		# log ("Creating raw laz file of input raw points: %s " % (outfile))
-		# np.savetxt(outfile, xyz, fmt='%.2f, %.3f, %.4f', delimiter=',', newline='\n')
-		# fname = lashelper.txt2las(outfile, epsg=args.epsg)
-		# fileutils.deletefile(outfile)
-
-	# msg = "GGOutlier complete. outlier_cloud.points
 	log("QC complete at: %s" % (datetime.now()))
 	return shpfilename
 
