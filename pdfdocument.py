@@ -201,6 +201,9 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	myreport.addspace()
 	myreport.addparagraph("Below is an example of how to consume the results from GGOutlier using GIS to analyse outliers which do not meet specification.")
 	myreport.addspace()
+	myreport.addspace()
+	myreport.addspace()
+	myreport.addparagraph("")
 	
 	image = os.path.join(os.path.dirname(__file__), "GGOutliergis.png")
 	myreport.addimage(image, 450)
