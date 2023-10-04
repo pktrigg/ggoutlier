@@ -169,8 +169,11 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	myreport.addspace()
 	myreport.addtitle("Definitions")
 	myreport.addspace()
-	myreport.addparagraph("Inliers are points which do meet the required specification for allowable total vertical uncertainty.")
-	myreport.addparagraph("Outliers are points which do NOT meet the required specification for allowable Total Vertical Uncertainty (TVU).")
+	myreport.addparagraph("'Depth Surface' is the primary input.  This is a floating point surface of fully processed depths, typically produced by a multibeam processing tool such as CARIS, QIMERA, PDS2000, MBSONAR.")
+	myreport.addparagraph("'Nearest Neighbours' is the immediate depths surrounding a central depth in all directions, think of a central pixel.  it wil have 8 neighbours surrounding it and 24 pixels if we include the second ring of neighvours. These nearest neighbours are used to find the outliers just as a human would do if manually checking a surface.")
+	myreport.addparagraph("'TVU Surface' is a Total Vertical Uncertainty surface created by the tool.  The TVU value is computed at each and every depth and represents the 'allowable tvu' at that depth.  Effectively, this means it is the threshold for quality control.")
+	myreport.addparagraph("'Inliers' are points which do meet the required specification for allowable total vertical uncertainty.")
+	myreport.addparagraph("'Outliers' are points which do NOT meet the required specification for allowable Total Vertical Uncertainty (TVU).")
 
 	myreport.addtitle("Inputs")
 	myreport.addspace()
