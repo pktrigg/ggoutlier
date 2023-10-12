@@ -65,7 +65,6 @@ import rasterio
 import multiprocessing as mp
 import shapefile
 import logging
-import gc
 
 # locals
 import fileutils
