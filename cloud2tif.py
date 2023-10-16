@@ -79,12 +79,17 @@ def tileraster(filename, odir, tilewidth = 512, tileheight = 512, tileoverlap= 1
 	return odir
 ###############################################################################
 def getWKT(filename):
-		
+	
+	WKT = ""
 	if not os.path.exists(filename):
 		return
 	
 	with rasterio.open(filename) as src:
-		WKT = src._crs.wkt
+		# Handle errors while calling os.remove()
+		try:
+			WKT = src._crs.wkt
+		except:
+			return WKT
 		# pkpk = CRS.from_epsg(4326).wkt
 	src.close()
 	#garbage collect

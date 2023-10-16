@@ -14,6 +14,8 @@
 # pip install matplotlib
 
 #done##########################################
+# trap if zero outliers found
+# trap if tif file has no WKT georeferencing
 # load a laz file
 # compute the cloud2raster MEAN
 # compute the cloud2raster MEDIAN
@@ -291,21 +293,24 @@ def process2(filename, args):
 	#write the outliers to a point cloud laz file
 	# fname = lashelper.txt2las(outfile, epsg=args.epsg)
 
-	#write to the las file using pylasfile...
-	outfile = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_OutlierPoints" + ".las")
-	# outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
-	writer = pylasfile.laswriter(filename=outfile, lasformat=1.4)
-	pointsourceID = 1
-	writer.hdr.FileSourceID = pointsourceID
-	# write out a WGS variable length record so users know the coordinate reference system
-	writer.writeVLR_WKT(args.wkt)
-	writer.writeVLR_WGS84()
-	writer.hdr.PointDataRecordFormat = 1
-	a = np.array(ptout)
-	# columns = zip(*ptout) #transpose rows to columns
-	writer.writepointlist(a[:,0],a[:,1],a[:,2])
-	writer.close()	
-	log ("Created LAS file of outliers: %s " % (outfile))
+	if len(ptout) > 0 :
+		#write to the las file using pylasfile...
+		outfile = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_OutlierPoints" + ".las")
+		# outfile = os.path.join(os.path.dirname(originalfilename), args.odir, os.path.basename(originalfilename) + "_OutlierPoints" + ".las")
+		writer = pylasfile.laswriter(filename=outfile, lasformat=1.4)
+		pointsourceID = 1
+		writer.hdr.FileSourceID = pointsourceID
+		# write out a WGS variable length record so users know the coordinate reference system
+		writer.writeVLR_WKT(args.wkt)
+		writer.writeVLR_WGS84()
+		writer.hdr.PointDataRecordFormat = 1
+		a = np.array(ptout)
+		# columns = zip(*ptout) #transpose rows to columns
+		writer.writepointlist(a[:,0],a[:,1],a[:,2])
+		writer.close()	
+		log ("Created LAS file of outliers: %s " % (outfile))
+	else:
+		log ("No outliers found, no las file created.")
 
 	#clean up the tiles...
 	cleanup(args)
