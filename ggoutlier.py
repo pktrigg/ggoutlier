@@ -14,6 +14,7 @@
 # pip install matplotlib
 
 #done##########################################
+# added support for multiband and singleband tif files.  if multiband, we will look for a band called 'depth' and use that.  if not found we will use the first band.
 # trap if zero outliers found
 # trap if tif file has no WKT georeferencing
 # load a laz file
@@ -191,7 +192,27 @@ def process2(filename, args):
 	log("Processing file: %s" % (filename))
 	pixels, SRCRESOLUTION = cloud2tif.getsize(filename)
 
-	tilefolder = cloud2tif.tileraster(filename, args.odir, tilewidth = 4096, tileheight = 4096, tileoverlap= 0)
+	#before we tile we need to check if a multiband raster and if so, we need to split it into single band rasters
+	#we need to do this because the tileraster function only works on single band rasters
+	bandnames = cloud2tif.getbandnames(filename)
+	if len(bandnames) == 1:
+		band = bandnames[0]
+		outfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_Depth.tif")
+		bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
+	else:
+		log("Bands in tif file: %s" % (str(bandnames)))
+		for band in bandnames:
+			if 'depth' in band.lower():
+				outfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_Depth.tif")
+				bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
+				break
+	
+	if not os.path.exists(bandfilename):
+		log("Oops, no file found to process, please ensure you have provided a single band file or multi-band file with 'depth' and a band name, quitting")
+		return ""
+	
+	#its a single band raster so we can just tile it...
+	tilefolder = cloud2tif.tileraster(bandfilename, args.odir, tilewidth = 4096, tileheight = 4096, tileoverlap= 0)
 	matches = fileutils.findFiles2(False, tilefolder, "*.tif")
 
 	#now we can process each tile in turn...

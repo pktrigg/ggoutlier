@@ -53,6 +53,30 @@ def get_tiles2(ds, tile_width, tile_height, overlap):
 			transform = windows.transform(window, ds.transform)
 			yield window, transform
 
+#############################################################################
+def getbandnames(filename):
+	with rasterio.open(filename) as src:
+		bandnames = src.descriptions
+	gc.collect()	
+	return bandnames
+
+#############################################################################
+def multibeand2singleband(filename, outfilename, bandname):
+	'''given a multiband tif file, extract a single band and save it as a single band tif file'''
+	rio = rasterio.open(filename)
+	bandnames = rio.descriptions
+	# Copy the metadata
+	for band in range(1, rio.count +1): #The +1 allows the writing of the last band
+			if bandnames[band-1].lower() == bandname.lower():
+				single_band = rio.read(band)
+				# Copy the metadata
+				out_meta = rio.meta.copy()
+				out_meta.update({"count": 1})
+				# save the raster band to disk
+				with rasterio.open(outfilename, "w", **out_meta) as dest:
+					dest.write(single_band, 1)
+				return outfilename
+
 ###############################################################################
 def tileraster(filename, odir, tilewidth = 512, tileheight = 512, tileoverlap= 10):
 	'''use rasterio to tile a file into smaller manageable chunks'''
