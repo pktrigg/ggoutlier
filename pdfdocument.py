@@ -121,7 +121,7 @@ def reportsummary(myreport, GGOutlierlogfilename):
 			collectinformation(line, "INFO:root:Percentage outside specification:", "Percentage_Outside_Specification", metrics)
 			collectinformation(line, "INFO:root:Points checked:", "Points_Checked", metrics)
 
-			msg = "INFO:root:Processing file:"
+			msg = "INFO:root:Processing band file:"
 			if msg in line:
 				line = line.replace(msg,"")
 				line = line.strip()

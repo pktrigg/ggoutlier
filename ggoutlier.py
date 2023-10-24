@@ -196,14 +196,12 @@ def process2(filename, args):
 	#we need to do this because the tileraster function only works on single band rasters
 	bandnames = cloud2tif.getbandnames(filename)
 	if len(bandnames) == 1:
-		band = bandnames[0]
-		outfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_Depth.tif")
-		bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
+		bandfilename = filename
 	else:
 		log("Bands in tif file: %s" % (str(bandnames)))
 		for band in bandnames:
 			if 'depth' in band.lower():
-				outfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_Depth.tif")
+				outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tif")
 				bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
 				break
 	
@@ -211,6 +209,7 @@ def process2(filename, args):
 		log("Oops, no file found to process, please ensure you have provided a single band file or multi-band file with 'depth' and a band name, quitting")
 		return ""
 	
+	log("Processing band file: %s" % (bandfilename))
 	#its a single band raster so we can just tile it...
 	tilefolder = cloud2tif.tileraster(bandfilename, args.odir, tilewidth = 4096, tileheight = 4096, tileoverlap= 0)
 	matches = fileutils.findFiles2(False, tilefolder, "*.tif")
@@ -234,14 +233,17 @@ def process2(filename, args):
 		standard = iho.loadstandard(args.standard)
 		# log("Survey_Standard: %s" %(standard.details()))
 		outfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_TVU_Allowable.tif")
+		log ("Computing TVU surface: %s " % (outfilename))
 		allowabletvufilename = standard.computeTVUSurface(filename, outfilename)
 
 		deltazfilename = os.path.join(os.path.dirname(filename), os.path.splitext(os.path.basename(filename))[0] + "_DeltaZ.tif")
+		log ("Computing DeltaZ surface: %s " % (deltazfilename))
 		standard.computeDeltaZ(regionalfilename, depthfilename, deltazfilename)
 
 		# log ("Created DeltaZ TIF file for validation of ALL depths: %s " % (deltazfilename))
 
 		outliersfilename = os.path.join(os.path.dirname(filename),  os.path.splitext(os.path.basename(filename))[0] + "_Outliers.tif")
+		log ("Pass1: Finding Outliers...")
 		outliersfilename, xydz = standard.findoutliers(allowabletvufilename, deltazfilename, outliersfilename)
 
 		# we can now double check the outliers to see how far they are away from the resulting inlier raster file of mean depths.  
@@ -250,6 +252,7 @@ def process2(filename, args):
 		rio = rasterio.open(regionalfilename)
 		depthio = rasterio.open(depthfilename)
 
+		log ("Pass2: double checking outliers...")
 		# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
 		radius = 2 #the mask is set to 5 so we use 2 each side of central point.  this means we will skip outlier detection 2 pixels from the edge of the raster
 		mask = []
