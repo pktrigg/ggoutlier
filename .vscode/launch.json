@@ -8,12 +8,12 @@
 			"stopOnEntry": false,
 			"program": "${file}",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-i", "c:/sampledata/multibandtif/MULTIBANDSI1026_A_MBE_c1m_LAT_1a_Final_r1.tif"]
+			"args": ["-i", "c:/sampledata/multibandtif/SINGLEBANDSI1026_A_MBE_c1m_LAT_1a_Final_Depth_r1.tif"]
 		}
 	]
 }
 
-"args": ["-i", "c:/sampledata/multibandtif/SINGLEBANDSI1026_A_MBE_c1m_LAT_1a_Final_Depth_r1.tif"]
+"args": ["-i", "c:/sampledata/multibandtif/MULTIBANDSI1026_A_MBE_c1m_LAT_1a_Final_r1.tif"]
 "args": ["-i", "Y:/subsea-cloud/ggtools/kmallcleandata/tiff", "-odir", "c:/temp/pk", "-verbose"]
 
 // "args": ["-i", "Y:/subsea-cloud/ggtools/kmallclean/SI1026_A"]

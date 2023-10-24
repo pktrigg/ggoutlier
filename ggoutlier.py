@@ -164,6 +164,10 @@ def main():
 		pdfdocument.GGOutlierreport(logfilename, args.odir)
 		log("Report Complete")
 		log("QC complete at: %s" % (datetime.now()))	
+
+		#clean up the tiles...
+		cleanup(args)
+
 ############################################################
 def cleanup(args):
 	'''clean up the odir folder '''
@@ -336,8 +340,8 @@ def process2(filename, args):
 	else:
 		log ("No outliers found, no las file created.")
 
-	#clean up the tiles...
-	cleanup(args)
+	# #clean up the tiles...
+	# cleanup(args)
 
 	log("Creating a regional file for QC purposes")
 	try:
