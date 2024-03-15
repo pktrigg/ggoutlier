@@ -168,6 +168,13 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	myreport.addspace()
 	myreport.addparagraph("In bathymetry, an outlier typically refers to an isolated or anomalous depth measurement or feature on a seafloor depth map or chart. These outliers can be depths that are significantly different from the surrounding seafloor topography. Outliers might be caused by various factors such as errors in data collection, equipment malfunction, or unique geological features like wrecks, obstructions, seamounts or underwater volcanoes that stand out from the surrounding seabed. The scale of an outlier can be considerable. Identifying and understanding outliers in bathymetric data is important for accurate navigation, scientific research, and ocean exploration. Separating a real feature from noise is a complex issue. The final decision comes down to the skill and experience of the Surveyor In Charge. GGOutlier efficiently analyse and highlight outliers for validation.")
 
+	myreport.addtitle("What is a Significant Feature?")
+	myreport.addspace()
+	myreport.addparagraph("A bathymetric feature is defined as an item on the seafloor which is distinctly different from the surrounding area; it can be anything from an isolated rock on a flat sand seafloor to a wreck or obstruction. All features greater than the feature detection limit specified in the Survey Instruction are to be identified. S44 Ed 6 defines Significant Features as a feature that poses a potential danger to navigation or an object one would expect to see depicted on a nautical chart. S57 Ed 3.1 Supp 3 defines Significant Features as listed in Table 10 which conforms to the feature detections standards of S44. There are 2 categories of significant features: 1) those that are within the survey area and 2) those that are outside the survey area. The Surveyor In Charge will review and approve all significant features.")
+	myreport.addparagraph("1. In depths less than 40m water, a bathymetric feature is considered a significant feature if the variation compared to surrounding depths is greater than 2.0m.")
+	myreport.addparagraph("2. In depths greater than 40m water, a bathymetric feature is considered a significant feature if the variation compared to surrounding depths is more than 10% of the depth.")
+	myreport.addparagraph("GGOutlier will identify both of these criteria and flag all features in the survey area by setting the shape file attribute 'SigFeature' to 'YES'. This provides an excellent mechanism to identify all significant features and pass to the Surveyor In Charge (SIC) for review and determination if they are reportable features.")
+
 	myreport.addtitle("GGOutlier Principles")
 	myreport.addspace()
 

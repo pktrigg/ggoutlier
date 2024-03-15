@@ -358,7 +358,7 @@ def process2(filename, args):
 	significantfeaturecount = 0
 	for idx, pt in enumerate(ptout):
 		exceedance 			= 0
-		significantfeature 	= 'No'
+		significantfeature 	= 'NO'
 		depth 				= pt[2]
 		allowable 			= pt[4]
 		deltaz 				= pt[3]
@@ -367,17 +367,17 @@ def process2(filename, args):
 		###########################################################################
 		# add the logic from the SOR to determine if this is a significant feature
 		if abs(depth) > 40 and abs(deltaz) > abs(depth * 0.1):
-			significantfeature = 'Yes'
+			significantfeature = 'YES'
 		
 		if abs(depth) <= 40 and abs(deltaz) >= 2.0:
-			significantfeature = 'Yes'
+			significantfeature = 'YES'
 		###########################################################################
 
 		# if the allowable is greate than zero we can compute an exceedance
 		if allowable > 0:
 			exceedance = min((deltaz-allowable) / allowable * 100, 1000)
 		
-		if significantfeature == 'Yes':
+		if significantfeature == 'YES':
 			significantfeaturecount += 1
 		# write the record to a shapefile
 		w.pointz(pt[0], pt[1], pt[2])
