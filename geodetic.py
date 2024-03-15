@@ -570,7 +570,7 @@ class geodesy:
 
 		self.EPSGCode = EPSGCode
 		self.projection = None
-		self.loadProj(EPSGCode, wkt)
+		self.projection = self.loadProj(EPSGCode, wkt)
 
 	###############################################################################
 	def wkt2epsg(self, wkt=""):

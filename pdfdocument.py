@@ -115,6 +115,7 @@ def reportsummary(myreport, GGOutlierlogfilename):
 			collectinformation(line, "INFO:root:Depths loaded for quality control:", "Depths_Loaded_for_QC", metrics)
 			collectinformation(line, "INFO:root:Points tagged for further evaluation:", "Machine_Learning_Candidates", metrics)	
 			collectinformation(line, "INFO:root:Points outside specification:", "**Final_Outliers_Exceeding_Standard**", metrics)
+			collectinformation(line, "INFO:root:Significant Features for Review:", "**Significant_Features**", metrics)
 			collectinformation(line, "INFO:root:QC to Survey Standard:", "Required_Survey_Standard", metrics)
 			collectinformation(line, "INFO:root:Survey_Standard:", "Survey_Standard_Details", metrics)
 			collectinformation(line, "INFO:root:EPSGCode for geodetic conversions:", "EPSG_Code", metrics)
@@ -127,13 +128,20 @@ def reportsummary(myreport, GGOutlierlogfilename):
 				line = line.strip()
 				depthfilename = line
 
-			msg = "INFO:root:Created REGIONAL TIF file for IHO validation:"
+			msg = "INFO:root:Creating a regional file for QC purposes:"
 			if msg in line:
 				line = line.replace(msg,"")
 				line = line.strip()
 				metrics.append(["Regional_TIF", line])
 				regionalfilename = line
-		
+
+			msg = "INFO:root:Creating a Allowable TVU file for QC purposes:"
+			if msg in line:
+				line = line.replace(msg,"")
+				line = line.strip()
+				metrics.append(["AllowableTVU_TIF", line])
+				regionalfilename = line
+
 			msg = "INFO:root:Created TXT file of outliers:"
 			if msg in line:
 				line = line.replace(msg,"")
@@ -288,11 +296,11 @@ def reportsummary(myreport, GGOutlierlogfilename):
 
 	plt.grid()
 	# plt.show()
-	plt.title('Depth Surface With Outliers')
+	plt.title('Your Depth Surface With Outliers in red')
 	# plt.axis('on')
 	# plt.show()
-	# overviewimagefilename = regionalfilename + "_hillshade.png"
-	overviewimagefilename = depthfilename + "_hillshade.png"
+	overviewimagefilename = regionalfilename + "_hillshade.png"
+	#overviewimagefilename = depthfilename + "_hillshade.png"
 	plt.savefig(overviewimagefilename, bbox_inches='tight', dpi=640)
 	
 	myreport.addspace()

@@ -53,6 +53,13 @@
 # replace lastools with pylasfile
 # fix word wrapping
 # code clean up
+# ensure all results and tifs and input tif are in teh resutls folder so its all in one place
+# add the exceedance field to the shape file so we can scale symbology in GIS
+# add the significant feature field to the shape file so we can filter in GIS
+# add the SIC approved field to the shape file so we can filter in GIS
+# produce a allowableTVU.tif file so users can QC more easily
+# add the regional depth tif file to the results folder
+
 
 # todo ##########################################
 
@@ -84,13 +91,13 @@ def main():
 	msg = str(iho.getordernames())
 
 	parser = ArgumentParser(description='Analyse a floating point TIF file of depths and find all outliers exceeding a user specified threshold.')
-	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='(required) Input filename/folder to process.')
+	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='(optional) Input filename/folder to process. If no file is given all tif files in current folder will be processed (hint: its better to specify the file!)')
 	parser.add_argument('-epsg', 	action='store', 		default="",		dest='epsg', 			help='(optional) Specify an output EPSG code for transforming from WGS84 to East,North. If the TIF file is georeferenced this is not required to be specified. e.g. -epsg 32751')
 	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='(optional) Specify a relative output folder. normally leave this empty.  a folder will be created for you. e.g. -odir GIS')
 	parser.add_argument('-near', 	action='store', 		default="5",		dest='near',			help='(optional) ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neighbours can be calculated. [Default:5]')
 	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='(optional) Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + ''.join(msg) + ' [Default:order1a]' )
-	parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='(optional) Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
-	parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAZ files and other supproting file.s  takes some additional time!,e.g. -verbose [Default:false]')
+	# parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='(optional) Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
+	parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAS files and other supproting file.s  takes some additional time!,e.g. -verbose [Default:false]')
 
 	matches = []
 	args = parser.parse_args()
@@ -102,9 +109,13 @@ def main():
 		# no file is specified, so look for a .pos file in terh current folder.
 		inputfolder = os.getcwd()
 		matches = fileutils.findFiles2(False, inputfolder, "*.tif")
+		if len(matches) == 0:
+			matches = fileutils.findFiles2(False, inputfolder, "*.tiff")
 
 	if os.path.isdir(args.inputfile):
 		matches = fileutils.findFiles2(False, args.inputfile, "*.tif")
+		if len(matches) == 0:
+			matches = fileutils.findFiles2(False, args.inputfile, "*.tiff")
 
 	if len(matches) == 0:
 		print("oops, no files found to process, quitting")
@@ -136,7 +147,7 @@ def main():
 		log("EPSGCode for geodetic conversions: %s" % (args.epsg))
 		
 		log("Configuration: %s" % (str(args)))
-		log("GGOutlier Version: 3.01")
+		log("GGOutlier Version: 4.0")
 		log("GGOutlier started at: %s" % (datetime.now()))
 		log("Username: %s" %(os.getlogin()))
 		log("Computer: %s" %(os.environ['COMPUTERNAME']))
@@ -147,8 +158,8 @@ def main():
 		log("Survey_Standard: %s" %(standard.details()))
 
 		#skip the file if its the same as the uncertianty file name
-		if os.path.basename(file) == os.path.basename(args.uncertaintyfilename):
-			continue
+		# if os.path.basename(file) == os.path.basename(args.uncertaintyfilename):
+			# continue
 
 		# args.odir = str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S")))
 		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
@@ -159,6 +170,29 @@ def main():
 		# odir = os.path.join(os.path.dirname(matches[0]), args.odir)
 		# makedirs(odir)
 		process2(file, args)
+
+	for filename in matches:
+		#before we proces we need to check if a multiband raster and if so, we need to split it into single band rasters
+		#we need to do this because the tileraster function only works on single band rasters
+		bandnames = cloud2tif.getbandnames(filename)
+		if len(bandnames) == 1:
+			outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
+			status, bandfilename = fileutils.copyfile(filename, outfilename)
+		else:
+			log("Bands in tif file: %s" % (str(bandnames)))
+			for band in bandnames:
+				if 'depth' in band.lower():
+					outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
+					bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
+					break
+
+		outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(bandfilename))[0] + "_TVU_Allowable.tiff")
+		iho = ggmbesstandard.sp44()
+		log ("Creating a Allowable TVU file for QC purposes: %s " % (outfilename))
+		standard = iho.loadstandard(args.standard)
+		allowabletvufilename = standard.computeTVUSurface(bandfilename, outfilename)
+		log ("Created TVU TIF file for validation in GIS: %s " % (outfilename))
+
 		log("QC Duration:%.3fs" % (time.time() - start_time))
 		log("Creating Report...")
 		pdfdocument.GGOutlierreport(logfilename, args.odir)
@@ -200,14 +234,25 @@ def process2(filename, args):
 	#we need to do this because the tileraster function only works on single band rasters
 	bandnames = cloud2tif.getbandnames(filename)
 	if len(bandnames) == 1:
-		bandfilename = filename
+		outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
+		status, bandfilename = fileutils.copyfile(filename, outfilename)
 	else:
 		log("Bands in tif file: %s" % (str(bandnames)))
 		for band in bandnames:
 			if 'depth' in band.lower():
-				outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tif")
+				outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
 				bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
 				break
+
+	# if len(bandnames) == 1:
+	# 	bandfilename = filename
+	# else:
+	# 	log("Bands in tif file: %s" % (str(bandnames)))
+	# 	for band in bandnames:
+	# 		if 'depth' in band.lower():
+	# 			outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tif")
+	# 			bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
+	# 			break
 	
 	if not os.path.exists(bandfilename):
 		log("Oops, no file found to process, please ensure you have provided a single band file or multi-band file with 'depth' and a band name, quitting")
@@ -256,7 +301,7 @@ def process2(filename, args):
 		rio = rasterio.open(regionalfilename)
 		depthio = rasterio.open(depthfilename)
 
-		log ("Pass2: double checking outliers...")
+		log ("Pass2: double checking outliers at edges of survey...")
 		# EDGE CLEAN UP: check if at edge of data by building a mask for regional and see if anything is an empty cell...			
 		radius = 2 #the mask is set to 5 so we use 2 each side of central point.  this means we will skip outlier detection 2 pixels from the edge of the raster
 		mask = []
@@ -271,13 +316,16 @@ def process2(filename, args):
 			npmaskrealworld[:,1] += pt[1]
 
 			if rio.nodatavals[0] in list(rio.sample(npmaskrealworld)):
-			# if rio.nodatavals[0] in list(rio.sample(mask)):
 				#this is an edge case so drop it
 				confirmedinliers.append(pt)
 			else:
 				#this is a real outlier so keep it
 				confirmedoutliers.append(pt)
 				griddepth = next(rio.sample([(pt[0], pt[1])]))[0]
+				if griddepth == 0:
+					#this can happen at the edges of the survey area where more than half the surrounding pixels are empty. this is because we are using the MEDIAN to smooth the regional surface.  in this case we skip.
+					print("oops")
+					continue
 				depth = next(depthio.sample([(pt[0], pt[1])]))[0]
 				tvu = standard.gettvuat(griddepth)
 				deltaz = abs(pt[2])
@@ -301,17 +349,44 @@ def process2(filename, args):
 	w.field('DeltaZ', 'N',8,3) # 8 byte floats, 3 decimal places
 	w.field('AllowedTVU', 'N',8,3)
 	w.field('Depth', 'N',8,3)
-	w.field('GridDepth', 'N',8,3)
+	w.field('RegionalZ', 'N',8,3)
+	w.field('Exceedance', 'N',8,3)
+	w.field('SigFeature','C','254')
 	w.field('SICApproved','C','254')
 	log ("Writing outliers to: %s" % (shpfilename))
 
+	significantfeaturecount = 0
 	for idx, pt in enumerate(ptout):
+		exceedance 			= 0
+		significantfeature 	= 'No'
+		depth 				= pt[2]
+		allowable 			= pt[4]
+		deltaz 				= pt[3]
+		griddepth 			= pt[5]
+
+		###########################################################################
+		# add the logic from the SOR to determine if this is a significant feature
+		if abs(depth) > 40 and abs(deltaz) > abs(depth * 0.1):
+			significantfeature = 'Yes'
+		
+		if abs(depth) <= 40 and abs(deltaz) >= 2.0:
+			significantfeature = 'Yes'
+		###########################################################################
+
+		# if the allowable is greate than zero we can compute an exceedance
+		if allowable > 0:
+			exceedance = min((deltaz-allowable) / allowable * 100, 1000)
+		
+		if significantfeature == 'Yes':
+			significantfeaturecount += 1
+		# write the record to a shapefile
 		w.pointz(pt[0], pt[1], pt[2])
-		w.record(pt[3], pt[4], pt[2], pt[5])
+		w.record(deltaz, allowable, depth, griddepth, exceedance, significantfeature, "N/A")
 	w.close()
 	#write out the prj so it opens nicely in GIS
 	cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.wkt)
 	# cloud2tif.createprj(shpfilename.replace(".shp",".prj"), args.epsg, args.wkt)
+	log ("Significant Features for Review: %s" % (f'{significantfeaturecount:,}'))
 
 	#OUTLIERS reporting...
 	outfile = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_OutlierPoints" + ".txt")
@@ -340,16 +415,13 @@ def process2(filename, args):
 	else:
 		log ("No outliers found, no las file created.")
 
-	# #clean up the tiles...
-	# cleanup(args)
-
 	log("Creating a regional file for QC purposes")
 	try:
-		regionalfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_RegionalDepth.tif")
+		regionalfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(originalfilename))[0] + "_RegionalDepth.tiff")
 		makedirs(os.path.dirname(regionalfilename))
 		fname = cloud2tif.smoothtif(originalfilename, regionalfilename, near=int(args.near))
 		log("Creating a regional file for QC purposes: %s" % (fname))
-	except:			
+	except:
 		log("Error while creating regional file. Maybe memory is an issue?")
 
 	if args.verbose:
