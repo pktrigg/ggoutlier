@@ -59,7 +59,9 @@
 # add the SIC approved field to the shape file so we can filter in GIS
 # produce a allowableTVU.tif file so users can QC more easily
 # add the regional depth tif file to the results folder
-
+# improve handling for multiband tif file which have no band names defined (we skip them as we do not know which band to use)
+# improve output folder name handling
+# improve processing of multiple files in a single folder
 
 # todo ##########################################
 
@@ -93,11 +95,13 @@ def main():
 	parser = ArgumentParser(description='Analyse a floating point TIF file of depths and find all outliers exceeding a user specified threshold.')
 	parser.add_argument('-i', 		action='store',			default="", 		dest='inputfile', 		help='(optional) Input filename/folder to process. If no file is given all tif files in current folder will be processed (hint: its better to specify the file!)')
 	parser.add_argument('-epsg', 	action='store', 		default="",		dest='epsg', 			help='(optional) Specify an output EPSG code for transforming from WGS84 to East,North. If the TIF file is georeferenced this is not required to be specified. e.g. -epsg 32751')
-	parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='(optional) Specify a relative output folder. normally leave this empty.  a folder will be created for you. e.g. -odir GIS')
+	# parser.add_argument('-odir', 	action='store', 		default="",			dest='odir', 			help='(optional) Specify a relative output folder. normally leave this empty.  a folder will be created for you. e.g. -odir GIS')
 	parser.add_argument('-near', 	action='store', 		default="5",		dest='near',			help='(optional) ADVANCED:Specify the MEDIAN filter kernel width for computation of the regional surface so nearest neighbours can be calculated. [Default:5]')
 	parser.add_argument('-standard',action='store', 		default="order1a",	dest='standard',		help='(optional) Specify the IHO SP44 survey order so we can set the filters to match the required specification. Select from :' + ''.join(msg) + ' [Default:order1a]' )
 	# parser.add_argument('-unc',		action='store', 		default="",			dest='uncertaintyfilename',		help='(optional) Specify the Uncertainty TIF filename, which is used with the allowable TVU to compute the TVU barometer  [Default:<nothing>]' )
 	parser.add_argument('-verbose', 	action='store_true', 	default=False,		dest='verbose',			help='verbose to write LAS files and other supproting file.s  takes some additional time!,e.g. -verbose [Default:false]')
+
+	parser.add_argument('-odir',		action='store', 		default="",			dest='odir')
 
 	matches = []
 	args = parser.parse_args()
@@ -135,10 +139,10 @@ def main():
 	start_time = time.time() # time the process
 	for file in matches:
 		#make an output folder
-		if len(args.odir) == 0:
-			args.odir = os.path.join(os.path.dirname(file), str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S"))))
-		if not os.path.isdir(args.odir):
-			args.odir = os.path.join(os.path.dirname(file), args.odir)
+		args.odir = os.path.join(os.path.dirname(file), os.path.splitext(os.path.basename(file))[0] + "_GGOutlier_%s"% (time.strftime("%Y%m%d-%H%M%S")))
+		# args.odir = os.path.join(os.path.dirname(file), str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S"))))
+		# if not os.path.isdir(args.odir):
+		# 	args.odir = os.path.join(os.path.dirname(file), args.odir)
 		makedirs(args.odir)
 
 		logfilename = os.path.join(args.odir,"GGOutlier_log.txt").replace('\\','/')
@@ -171,19 +175,21 @@ def main():
 		# makedirs(odir)
 		process2(file, args)
 
-	for filename in matches:
+		#clean up the tiles...
+		cleanup(args)
+
 		#before we proces we need to check if a multiband raster and if so, we need to split it into single band rasters
 		#we need to do this because the tileraster function only works on single band rasters
-		bandnames = cloud2tif.getbandnames(filename)
+		bandnames = cloud2tif.getbandnames(file)
 		if len(bandnames) == 1:
-			outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
-			status, bandfilename = fileutils.copyfile(filename, outfilename)
+			outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(file))[0] + "_Depth.tiff")
+			status, bandfilename = fileutils.copyfile(file, outfilename)
 		else:
 			log("Bands in tif file: %s" % (str(bandnames)))
 			for band in bandnames:
 				if 'depth' in band.lower():
-					outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
-					bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)
+					outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(file))[0] + "_Depth.tiff")
+					bandfilename = cloud2tif.multibeand2singleband(file, outfilename, band)
 					break
 
 		outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(bandfilename))[0] + "_TVU_Allowable.tiff")
@@ -198,9 +204,6 @@ def main():
 		pdfdocument.GGOutlierreport(logfilename, args.odir)
 		log("Report Complete")
 		log("QC complete at: %s" % (datetime.now()))	
-
-		#clean up the tiles...
-		cleanup(args)
 
 ############################################################
 def cleanup(args):
@@ -232,6 +235,7 @@ def process2(filename, args):
 
 	#before we tile we need to check if a multiband raster and if so, we need to split it into single band rasters
 	#we need to do this because the tileraster function only works on single band rasters
+	bandfilename = ""
 	bandnames = cloud2tif.getbandnames(filename)
 	if len(bandnames) == 1:
 		outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
@@ -239,6 +243,8 @@ def process2(filename, args):
 	else:
 		log("Bands in tif file: %s" % (str(bandnames)))
 		for band in bandnames:
+			if band is None:
+				continue
 			if 'depth' in band.lower():
 				outfilename = os.path.join(args.odir, os.path.splitext(os.path.basename(filename))[0] + "_Depth.tiff")
 				bandfilename = cloud2tif.multibeand2singleband(filename, outfilename, band)

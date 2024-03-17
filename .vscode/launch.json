@@ -8,10 +8,16 @@
 			"stopOnEntry": false,
 			"program": "${file}",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-i", "c:/sampledata/multibandtif/SINGLEBANDSI1026_A_MBE_c1m_LAT_1a_Final_Depth_r1.tif", "-epsg", "32751"]
+			"args": ["-i", "Y:/Subsea-Cloud/SI1030/SI_1030_Final/SI1030/Survey_Reports_Data_Pack/Quality_Assurance/QAX_Checks/04032024/QAX/", "-epsg", "32751"]
 		}
 	]
 }
+
+
+
+#regular testbed
+"args": ["-i", "c:/sampledata/multibandtif/", "-epsg", "32751"]
+
 
 "args": ["-i", "c:/sampledata/multibandtif/MULTIBANDSI1026_A_MBE_c1m_LAT_1a_Final_r1.tif"]
 "args": ["-i", "Y:/subsea-cloud/ggtools/kmallcleandata/tiff", "-odir", "c:/temp/pk", "-verbose"]

@@ -323,7 +323,7 @@ def reportsummary(myreport, GGOutlierlogfilename):
 
 ####################################################################################################
 def GGOutlierreport(GGOutlierlogfilename, resultfolder):
-	'''create an infinitpos QC report into PDF'''
+	'''create an QC report into PDF'''
 	if not os.path.exists(resultfolder):
 		return
 
@@ -336,7 +336,8 @@ def GGOutlierreport(GGOutlierlogfilename, resultfolder):
 		reportsummary(myreport, GGOutlierlogfilename )
 
 	myreport.save()
-	myreport.viewpdf()
+	# myreport.viewpdf()
+
 
 # ###################################################################################################
 def addQCImage(myreport, f, fragment, notes):
@@ -489,7 +490,7 @@ class REPORT:
 		# header_content = Paragraph("This is a multi-line header.  It goes on every page.  " * 8, self.normal)
 		template = PageTemplate(id='header', frames=frame, onPage=partial(self.addheader, title=title))
 		self.doc.addPageTemplates([template])
-
+		
 ###################################################################################################
 	def get_image(self, path, width=100*mm):
 		img = utils.ImageReader(path)
@@ -536,6 +537,7 @@ class REPORT:
 			background.paste(newlegend, (0,0))
 
 		background.save(outfilename)
+		
 		return outfilename
 
 ###################################################################################################
