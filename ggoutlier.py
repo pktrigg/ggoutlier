@@ -87,7 +87,7 @@ import pdfdocument
 import pylasfile
 
 ###########################################################################
-def main():
+def main(cli_args=sys.argv[1:]):
 
 	iho = ggmbesstandard.sp44()
 	msg = str(iho.getordernames())
@@ -104,7 +104,7 @@ def main():
 	parser.add_argument('-odir',		action='store', 		default="",			dest='odir')
 
 	matches = []
-	args = parser.parse_args()
+	args = parser.parse_args(cli_args)
 
 	if os.path.isfile(args.inputfile):
 		matches.append(args.inputfile)
