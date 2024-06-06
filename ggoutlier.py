@@ -87,7 +87,7 @@ import pdfdocument
 import pylasfile
 
 ###########################################################################
-def main(cli_args):
+def main(cli_args=sys.argv[1:]):
 
 	iho = ggmbesstandard.sp44()
 	msg = str(iho.getordernames())
@@ -543,7 +543,7 @@ def	log(msg, error = False, printmsg=True):
 
 ###############################################################################
 if __name__ == "__main__":
-	main(sys.argv[1:])
+	main()
 
 	########################v#######################################################
 	# log("Statistical outlier removal")
