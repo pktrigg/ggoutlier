@@ -128,7 +128,7 @@ def main(cli_args=sys.argv[1:]):
 	#get the WKT from the TIF file and add it to the args so we can make available....
 	WKT = cloud2tif.getWKT(matches[0])
 	parser.add_argument('-wkt',		action='store', 		default=WKT,			dest='wkt')
-	args = parser.parse_args()
+	args = parser.parse_args(cli_args)
 	#load the python proj projection object library if the user has requested it
 	if len(args.epsg) == 0:
 		args.epsg = str(geodetic.wkt2epsg(wkt=WKT))
