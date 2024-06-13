@@ -139,7 +139,9 @@ def main(cli_args=sys.argv[1:]):
 	start_time = time.time() # time the process
 	for file in matches:
 		#make an output folder
-		args.odir = os.path.join(os.path.dirname(file), os.path.splitext(os.path.basename(file))[0] + "_GGOutlier_%s"% (time.strftime("%Y%m%d-%H%M%S")))
+		if not args.odir:
+			# assume a default output directory if none is provided via input arguments
+			args.odir = os.path.join(os.path.dirname(file), os.path.splitext(os.path.basename(file))[0] + "_GGOutlier_%s"% (time.strftime("%Y%m%d-%H%M%S")))
 		# args.odir = os.path.join(os.path.dirname(file), str("GGOutlier_%s" % (time.strftime("%Y%m%d-%H%M%S"))))
 		# if not os.path.isdir(args.odir):
 		# 	args.odir = os.path.join(os.path.dirname(file), args.odir)
