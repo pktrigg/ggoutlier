@@ -23,7 +23,12 @@ setup(
         '.',
     ],
     zip_safe=False,
-    package_data={},
+    package_data={
+        "ggoutlier": [
+            "GGOutlierGIS.png",
+            "Guardian.png",
+        ]
+    },
     install_requires=[
         'reportlab',
         'pyproj',
