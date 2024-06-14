@@ -21,6 +21,7 @@ setup(
     },
     packages=[
         '.',
+        'ggoutlier'
     ],
     zip_safe=False,
     package_data={
