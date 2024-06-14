@@ -24,7 +24,7 @@ setup(
     ],
     zip_safe=False,
     package_data={
-        "ggoutlier": [
+        "": [
             "GGOutlierGIS.png",
             "Guardian.png",
         ]
