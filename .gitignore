@@ -151,3 +151,9 @@ $RECYCLE.BIN/
 >>>>>>> origin/master
 20210705_071508.s7k
 *.s7k
+*.tiff
+*_OutlierPoints.*
+*_log*.txt
+*QCReport.pdf
+*hillshade*.png
+
