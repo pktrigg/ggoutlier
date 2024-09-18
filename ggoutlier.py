@@ -14,6 +14,7 @@
 # pip install matplotlib
 
 #done##########################################
+# cut out row if the values in the 3rd column are within an int32 valid range
 # added support for multiband and singleband tif files.  if multiband, we will look for a band called 'depth' and use that.  if not found we will use the first band.
 # trap if zero outliers found
 # trap if tif file has no WKT georeferencing
@@ -416,6 +417,9 @@ def process2(filename, args):
 		writer.writeVLR_WGS84()
 		writer.hdr.PointDataRecordFormat = 1
 		a = np.array(ptout)
+		# cut out row if the values in the 3rd column are within an int32 valid range
+		a = a[(a[:,2] > -2147483648) & (a[:,2] < 2147483647)]
+				
 		# columns = zip(*ptout) #transpose rows to columns
 		writer.writepointlist(a[:,0],a[:,1],a[:,2])
 		writer.close()	
@@ -444,6 +448,8 @@ def process2(filename, args):
 			x = np.array(xs).flatten()
 			y = np.array(ys).flatten()
 			xyz = np.stack((x,y,z), axis=1)
+			# cut out row if the values in the 3rd column are within an int32 valid range
+			xyz = xyz[(xyz[:,2] > -2147483648) & (xyz[:,2] < 2147483647)]
 			NODATA = src.nodatavals[0]
 			xyz = xyz[np.all(xyz != NODATA, axis=1)]
 

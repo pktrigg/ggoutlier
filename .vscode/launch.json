@@ -8,14 +8,17 @@
 			"stopOnEntry": false,
 			"program": "${file}",
 			"env": {"PYDEVD_DISABLE_FILE_VALIDATION": "1"},
-			"args": ["-i", "Y:/Subsea-Cloud/SI1030/SI_1030_Final/SI1030/Survey_Reports_Data_Pack/Quality_Assurance/QAX_Checks/04032024/QAX/", "-epsg", "32751"]
+			"args": ["-i", "C:/sampledata/ggoutlier/problemfile/teste_qax.tif"]
 		}
 	]
 }
 
 
 
+
 #regular testbed
+"args": ["-i", "Y:/Subsea-Cloud/SI1030/SI_1030_Final/SI1030/Survey_Reports_Data_Pack/Quality_Assurance/QAX_Checks/04032024/QAX/", "-epsg", "32751"]
+
 "args": ["-i", "c:/sampledata/multibandtif/", "-epsg", "32751"]
 
 
