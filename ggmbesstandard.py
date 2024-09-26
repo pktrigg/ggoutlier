@@ -213,7 +213,7 @@ class standard:
 		dz = deltaz.flatten()
 		xydz = np.stack((x,y,dz), axis=1, dtype=np.float32)
 		#remove the values which are inliers
-		xydz = xydz[np.all(xydz > 0.0, axis=1)]
+		xydz = xydz[xydz[:, 2] > 0]
 
 		# Write to tif, using the same profile as the source
 		# log("Writing outliers to raster file: %s" % (outfilename))
