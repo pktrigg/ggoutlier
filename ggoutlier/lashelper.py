@@ -18,7 +18,6 @@ import logging
 import ctypes
 import multiprocessing
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 from . import geodetic
 from . import fileutils
 
@@ -536,7 +535,7 @@ def lasduplicate(filename):
 	try:
 		fileutils.deletefile(filename)
 		os.rename(outfilename, filename)
-	except:			
+	except Exception:			
 		log("Error while duplicating & renaming file %s" % (outfilename), True)
 
 	return filename

@@ -37,26 +37,6 @@ def main(*opargs, **kwargs):
 	filename = createOutputFileName(filename, ext="")
 	print(filename)
 
-	return
-
-
-	recursive = False
-	# local folder
-	print ("11", findFiles2(recursive, ".", "*.py"))
-	# absolute folder
-	mypath = os.path.dirname(os.path.realpath(__file__))
-	print ("22", mypath, findFiles2(recursive, mypath, "*.py"))
-
-	# recursive local folder
-	recursive = True
-	print ("33",  mypath, findFiles2(recursive, ".", "*.py"))
-	#recursive absolute folder
-	mypath = os.path.dirname(os.path.realpath(__file__))
-	print ("44",  mypath, findFiles2(recursive, mypath, "*.py"))
-
-
-
-
 ###############################################################################
 def createOutputFileName(path, ext=""):
 	'''Create a valid output filename. if the name of the file already exists the file name is auto-incremented.'''
@@ -80,34 +60,10 @@ def createOutputFileName(path, ext=""):
 	ls		= set(os.listdir(dir))
 	candidate = "{}_{}{}".format(fname,index,ext)
 	while candidate in ls:
-			candidate = "{}_{}{}".format(fname,index,ext)
 			index	+= 1
+			candidate = "{}_{}{}".format(fname,index,ext)
 
 	return os.path.join(dir, candidate).replace('\\','/')
-
-###############################################################################
-
-# ###############################################################################
-# def createOutputFileName(path):
-# 	'''Create a valid output filename. if the name of the file already exists the file name is auto-incremented.'''
-# 	path	  = os.path.expanduser(path)
-
-# 	if not os.path.exists(os.path.dirname(path)):
-# 		os.makedirs(os.path.dirname(path))
-
-# 	if not os.path.exists(path):
-# 		return path
-
-# 	root, ext = os.path.splitext(os.path.expanduser(path))
-# 	dir	   = os.path.dirname(root)
-# 	fname	 = os.path.basename(root)
-# 	candidate = fname+ext
-# 	index	 = 1
-# 	ls		= set(os.listdir(dir))
-# 	while candidate in ls:
-# 			candidate = "{}_{}{}".format(fname,index,ext)
-# 			index	+= 1
-# 	return os.path.join(dir, candidate)
 
 ###############################################################################
 def findFiles2(recursive, filespec, filter):
@@ -183,13 +139,7 @@ def copyfile(srcfile, dstfile, replace=True):
 		# Handle errors while calling os.remove()
 		try:
 			os.remove(dstfile)
-		except:			
-			print("Error while deleting file %s. Maybe its in use?" % (dstfile))
-
-		# Handle errors while calling os.ulink()
-		try:
-			os.ulink(dstfile)
-		except:
+		except Exception:
 			print("Error while deleting file %s. Maybe its in use?" % (dstfile))
 
 	if os.path.exists(dstfile):
@@ -200,7 +150,7 @@ def copyfile(srcfile, dstfile, replace=True):
 	try:
 		shutil.copy(srcfile, dstfile)
 		return 1, dstfile
-	except:
+	except Exception:
 		print("Error while copying file %s" % (dstfile))
 		return 0, ""
 
@@ -219,7 +169,7 @@ def deletefile(filename):
 	if os.path.exists(filename):
 		try:			
 			os.remove(filename)
-		except:	
+		except Exception:	
 			return
 			#log("file is locked, cannot delete: %s " % (filename))
 

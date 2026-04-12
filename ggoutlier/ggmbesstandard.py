@@ -97,7 +97,6 @@ class standard:
 			allowedprofile = allowedsrc.profile
 			allowedNODATA = allowedsrc.nodatavals[0]
 			allowedarray[allowedarray==allowedNODATA] = -9999
-		allowedsrc.close()
 		#garbage collect
 		gc.collect()	
 
@@ -106,7 +105,6 @@ class standard:
 			uncertaintyprofile = uncertaintysrc.profile
 			uncertaintyNODATA = uncertaintysrc.nodatavals[0]
 			uncertaintyarray[uncertaintyarray==uncertaintyNODATA] = 0
-		uncertaintysrc.close()
 		#garbage collect
 		gc.collect()	
 	
@@ -132,8 +130,6 @@ class standard:
 			regionalprofile = regionalsrc.profile
 			regionalNODATA = regionalsrc.nodatavals[0]
 			regionalarray[regionalarray==regionalNODATA] = -9999
-		regionalsrc.close()
-
 		#garbage collect
 		gc.collect()	
 
@@ -142,8 +138,6 @@ class standard:
 			depthprofile = depthsrc.profile
 			depthNODATA = depthsrc.nodatavals[0]
 			deptharray[deptharray==depthNODATA] = 9999
-		depthsrc.close()
-
 		#garbage collect
 		gc.collect()	
 
@@ -178,8 +172,6 @@ class standard:
 			# deltazarray[deltazarray==deltazNODATA] = -9999
 			del xs
 			del ys
-		deltazsrc.close()
-
 		#garbage collect
 		gc.collect()	
 
@@ -188,8 +180,6 @@ class standard:
 			tvuprofile = tvusrc.profile
 			tvuNODATA = tvusrc.nodatavals[0]
 			# tvuarray[tvuarray== tvuNODATA] = 0
-		tvusrc.close()
-
 		#garbage collect
 		gc.collect()	
 

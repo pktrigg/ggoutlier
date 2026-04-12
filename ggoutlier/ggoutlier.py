@@ -431,7 +431,7 @@ def process2(filename, args):
 		makedirs(os.path.dirname(regionalfilename))
 		fname = cloud2tif.smoothtif(originalfilename, regionalfilename, near=int(args.near))
 		log("Creating a regional file for QC purposes: %s" % (fname))
-	except:
+	except Exception:
 		log("Error while creating regional file. Maybe memory is an issue?")
 
 	if args.verbose:
@@ -470,58 +470,6 @@ def process2(filename, args):
 
 	log("QC complete at: %s" % (datetime.now()))
 	return shpfilename
-
-# ##################################################################################
-# def findoutlier(pcd, low, high, TARGET=1.0, NUMPOINTS=3):
-# 	'''clean outliers using binary chop to control how many points we reject'''
-# 	'''use spherical radius to identify outliers and clusters'''
-# 	'''binary chop will aim for target percentage of data deleted rather than a fixed filter level'''
-# 	'''this way the filter adapts to the data quality'''
-# 	'''TARGET is the percentage of the input points we are looking to reject'''
-# 	'''NUMPOINTS is the number of nearest neighbours within the spherical radius which is the threshold we use to consider a point an outlier.'''
-# 	'''If a point has no friends, then he is an outlier'''
-# 	'''if a point has moew the NUMPOINTS in the spherical radius then he is an inlier, ie good'''
-
-# 	# Force garbage collection
-# 	gc.collect()
-
-# 	#outlier removal by radius
-# 	# http://www.open3d.org/docs/latest/tutorial/geometry/pointcloud_outlier_removal.html?highlight=outlier
-# 	# http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
-	
-# 	#cl: The pointcloud as it was fed in to the model (for some reason, it seems a bit pointless to return this).
-# 	#ind: The index of the points which are NOT outliers
-# 	currentfilter = (high+low)/2
-
-# 	cl, inlierindex = pcd.remove_statistical_outlier(nb_neighbors=NUMPOINTS,	std_ratio=currentfilter)
-# 	# cl, inlierindex = pcd.remove_radius_outlier(nb_points = NUMPOINTS, radius = currentfilter)
-
-# 	inlier_cloud 	= pcd.select_by_index(inlierindex, invert = False)
-# 	outlier_cloud 	= pcd.select_by_index(inlierindex, invert = True)
-# 	percentage 		= (100 * (len(outlier_cloud.points) / len(pcd.points)))
-# 	log ("Current filter StdDev %.2f" % (currentfilter))
-# 	log ("Percentage Rejection %.2f" % (percentage))
-
-# 	decimals = len(str(TARGET).split(".")[1])
-# 	percentage = round(percentage, decimals)
-# 	if percentage < TARGET:
-# 		#we have rejected too few, so run again setting the low to the pervious value
-# 		log ("Filter level decreasing to reject a few more points...")
-# 		del inlier_cloud
-# 		del outlier_cloud
-# 		del cl 				
-# 		del inlierindex
-# 		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, low, currentfilter, TARGET, NUMPOINTS)
-# 	elif percentage > TARGET:
-# 		#we have rejected too few, so run again setting the low to the pervious value
-# 		log ("Filter level increasing to reject a few less points...")
-# 		del inlier_cloud
-# 		del outlier_cloud
-# 		del cl 				
-# 		del inlierindex
-# 		pcd, inlier_cloud, outlier_cloud, inlierindex = findoutlier(pcd, currentfilter, high, TARGET, NUMPOINTS)
-
-# 	return (pcd, inlier_cloud, outlier_cloud, inlierindex)
 
 ###############################################################################
 def update_progress(job_title, progress):

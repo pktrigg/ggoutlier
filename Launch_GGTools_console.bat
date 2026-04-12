@@ -1,0 +1,4 @@
+@echo off
+
+cmd /k "SET PATH=C:\Lib\RTKLib;C:\Lib\LAStools\bin;C:\GGTools_20241113\plugins\windows;C:\GGTools_20241113\python;C:\GGTools_20241113\plugins\gdal;C:\GGTools_20241113\plugins\QCTools;C:\GGTools_20241113\python\Scripts;%PATH% && SET GDAL_DATA=C:\GGTools_20241113\plugins\gdal\gdal-data && SET PROJ_LIB=C:\GGTools_20241113\plugins\gdal\projlib && SET PROJ_DATA=C:\GGTools_20241113\plugins\gdal\projlib && SET PYTHONPATH=C:\GGTools_20241113\lib;C:\GGTools_20241113\plugins\gdal;C:\Program Files\CARIS\HIPS and SIPS\11.4\python\3.10 && SET GDAL_DRIVER_PATH=C:\GGTools_20241113\plugins\gdal\gdalplugins"
+		

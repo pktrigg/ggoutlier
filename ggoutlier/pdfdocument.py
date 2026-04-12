@@ -37,25 +37,6 @@ from . import fileutils
 from . import cloud2tif
 
 ####################################################################################################
-####################################################################################################
-# def bathyqcreport(logfilename, resultfolder):
-# 	'''create an bathyqc report into PDF'''
-# 	# resultfolder should be 5_grid
-# 	# logfilename should be args.inputfolder\bathyqc.log
-
-# 	if not os.path.exists(resultfolder):
-# 		return
-
-# 	outfilename = os.path.join(resultfolder, "BathyQCReport.pdf")
-# 	outfilename = fileutils.createOutputFileName(outfilename)
-# 	myreport = REPORT("BathyQC Report", outfilename)
-# 	log(filename, "BathyQCReport.pdf")
-# 	#parse the bathyqc log file and make a summary table
-# 	if os.path.exists(logfilename):
-# 		bathyqcreportsummary(myreport, logfilename )
-
-
-####################################################################################################
 def collectinformation(line, msgid, username, metrics):
 	if msgid in line:
 		line = line.replace(msgid,"")
@@ -372,88 +353,6 @@ def main():
 	GGOutlierlogfilename = os.path.join(os.path.dirname(args.inputfolder), "GGOutlier.log").replace('\\','/')
 	GGOutlierreport(GGOutlierlogfilename, resultfolder)
 
-	# outfilename = "c:/temp/myfile.pdf"
-	# outfilename = fileutils.createOutputFileName(outfilename)
-	
-	# myreport = REPORT("reportname", outfilename)
-	# myreport.addheader("Report %s" % (outfilename))
-	# myreport.addtitle("The quick brown fox jumped over the lazy dog.")
-	# myreport.addparagraph("This is a bad world.  we need to take care of The BaseDocTemplate class implements the basic machinery for document formatting. An instance of the class contains a list of one or more PageTemplates that can be used to describe the layout of information on a single page. The build method can be used to process a list of Flowables to produce a PDF document.")
-	# myreport.addparagraph("X")
-
-	# myreport.addimage("guardian.png", 50, "the guardian logo")
-	# myreport.addparagraph("This is a bad world.  we need to take care of The BaseDocTemplate class implements the basic machinery for document formatting. An instance of the class contains a list of one or more PageTemplates that can be used to describe the layout of information on a single page. The build method can be used to process a list of Flowables to produce a PDF document.")
-
-	# myreport.newpage()
-	# myreport.addheader("page2")
-
-	# myreport.addimage("guardian.png", 50, "the guardian logo")
-	# myreport.addparagraph("This is a bad world.  we need to take care of The BaseDocTemplate class implements the basic machinery for document formatting. An instance of the class contains a list of one or more PageTemplates that can be used to describe the layout of information on a single page. The build method can be used to process a list of Flowables to produce a PDF document.")
-
-	# myreport.newpage()
-	# myreport.addheader("Page 3")
-
-	# myreport.save()
-	# myreport.viewpdf()
-
-# 	# move the origin up and to the left
-# 	c.translate(mm,mm)
-# 	# define a large font
-# 	c.setFont("Helvetica", 10)
-# 	# choose some colors
-# 	c.setStrokeColorRGB(0.2,0.5,0.3)
-# 	c.setFillColorRGB(1,0,1)
-# 	# draw some lines
-# 	c.line(0,0,0,10*mm)
-# 	c.line(0,0,10*mm,0)
-# 	# draw a rectangle
-# 	c.rect(2*mm,2*mm,10*mm,15*mm, fill=1)
-# 	# make text go straight up
-# 	c.rotate(45)
-# 	# change color
-# 	# say hello (note after rotate the y coord needs to be negative!)
-# 	c.drawString(100*mm,100*mm,"Hello World",)
-# 	c.setFillColorRGB(0,0,0.77)
-# 	c.rotate(-45)
-
-# 	image = "guardian.png"
-# 	x = 100
-# 	y = 100
-# 	c.drawImage(image, x,y, preserveAspectRatio=True, width=10*mm,height=10,mask=None)
-
-# ###################################################################################################
-# def header(c, title):
-# 	headerheight = 25*mm
-# 	top = c._pagesize[1]
-
-# 	# move the origin up and to the left
-# 	# c.translate(mm,mm)
-# 	# define a font
-# 	# choose some colors
-# 	c.setStrokeColorRGB(0,0,0)
-# 	c.setFillColorRGB(0,0,0)
-
-# 	# set the title
-# 	x = 10*mm
-# 	y = top - 15*mm
-# 	c.setFont("Helvetica", 18)
-# 	c.drawString(x, y, title)
-
-# 	# set the date
-# 	x = 10*mm
-# 	y = top - 22*mm
-# 	c.setFont("Helvetica", 8)
-# 	str = "Report Date: %s" % (datetime.now().strftime("%Y%m%d%H%M%S"))
-# 	c.drawString(x, y, str)
-
-# 	image = "guardian.png"
-# 	x = c._pagesize[0]-(20*mm)
-# 	y = top - 22*mm
-# 	c.drawImage(image, x,y, preserveAspectRatio=True, width=15*mm, height=15*mm, mask=None)
-
-# 	# draw header line
-# 	c.line(5*mm, top-headerheight, c._pagesize[0]-(5*mm), c._pagesize[1]-headerheight)
-
 ##############################################################################
 class REPORTSURVEYLINE:
 	'''class to hold a group for reporting'''
@@ -513,7 +412,7 @@ class REPORT:
 
 		MAXWIDTH = requiredwidth
 		ratio = MAXWIDTH/img.size[0]
-		newimg = img.resize((int(img.size[0]*ratio), int(img.size[1]*ratio)), PIL.Image.ANTIALIAS)
+		newimg = img.resize((int(img.size[0]*ratio), int(img.size[1]*ratio)), PIL.Image.LANCZOS)
 		newimg_w, newimg_h = newimg.size
 
 		#the new image for compositing into
@@ -529,7 +428,7 @@ class REPORT:
 			# imglegend_w, imglegend_h = imglegend.size
 			MAXWIDTH = legendwidth
 			ratio = MAXWIDTH/imglegend.size[0]
-			newlegend = imglegend.resize((int(imglegend.size[0]*ratio), int(imglegend.size[1]*ratio)), PIL.Image.ANTIALIAS)
+			newlegend = imglegend.resize((int(imglegend.size[0]*ratio), int(imglegend.size[1]*ratio)), PIL.Image.LANCZOS)
 			background.paste(newlegend, (0,0))
 
 		background.save(outfilename)
@@ -577,13 +476,13 @@ class REPORT:
 		
 		# # set the date
 		canvas.setFont("Helvetica", 8)
-		str = "Creation Date: %s" % (datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
-		canvas.drawString(doc.leftMargin, top - 5*mm, str)
+		date_text = "Creation Date: %s" % (datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+		canvas.drawString(doc.leftMargin, top - 5*mm, date_text)
 
 		# set the user
 		canvas.setFont("Helvetica", 6)
-		str = "User : %s" % (os.getlogin())
-		canvas.drawString(doc.leftMargin + 130*mm, top - 5*mm, str)
+		user_text = "User : %s" % (os.getlogin())
+		canvas.drawString(doc.leftMargin + 130*mm, top - 5*mm, user_text)
 
 		image = os.path.join(os.path.dirname(__file__), "guardian.png")
 		x = doc.width + (15 * mm)
