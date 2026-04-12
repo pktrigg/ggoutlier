@@ -173,8 +173,6 @@ class standard:
 			width = deltazarray.shape[1]
 			cols, rows = np.meshgrid(np.arange(width), np.arange(height))
 			xs, ys = rasterio.transform.xy(deltazsrc.transform, rows, cols)
-			xs = np.float32(xs)
-			ys = np.float32(ys)
 			x = np.array(xs).flatten()
 			y = np.array(ys).flatten()
 			# deltazarray[deltazarray==deltazNODATA] = -9999
@@ -211,7 +209,7 @@ class standard:
 		gc.collect()	
 
 		dz = deltaz.flatten()
-		xydz = np.stack((x,y,dz), axis=1, dtype=np.float32)
+		xydz = np.stack((x,y,dz), axis=1, dtype=np.float64)
 		#remove the values which are inliers
 		xydz = xydz[np.all(xydz > 0.0, axis=1)]
 
