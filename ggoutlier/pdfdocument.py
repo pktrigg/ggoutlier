@@ -20,25 +20,21 @@ import sys
 import os
 from argparse import ArgumentParser
 from datetime import datetime
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm, cm
-from reportlab.platypus import BaseDocTemplate, SimpleDocTemplate, PageTemplate, Paragraph, Spacer, Frame, Table, Image, TableStyle, PageBreak
+from reportlab.platypus import BaseDocTemplate, PageTemplate, Paragraph, Spacer, Frame, Table, Image, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib import utils
 from functools import partial
 import PIL
 import rasterio as rio
-from rasterio.plot import show
 from rasterio.enums import Resampling
 import matplotlib.pyplot as plt
-import numpy as np
 import math
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
-import fileutils
-import cloud2tif
+from . import fileutils
+from . import cloud2tif
 
 ####################################################################################################
 ####################################################################################################
@@ -220,7 +216,7 @@ def reportsummary(myreport, GGOutlierlogfilename):
 	myreport.addspace()
 	myreport.addparagraph("")
 	
-	image = os.path.join(os.path.dirname(__file__), "GGOutliergis.png")
+	image = os.path.join(os.path.dirname(__file__), "GGOutlierGIS.png")
 	myreport.addimage(image, 450)
 
 	plt.ioff()
@@ -278,9 +274,9 @@ def reportsummary(myreport, GGOutlierlogfilename):
 
 	# plt.rcParams.update({'font.size': 6})
 	# im1 = plt.plot(dtm_data,cmap='terrain'); 
-	im1 = plt.imshow(dtm_data,cmap='terrain',extent=ext); 
+	im1 = plt.imshow(dtm_data,cmap='terrain',extent=ext) 
 	# cbar = plt.colorbar(); cbar.set_label('Elevation, m',rotation=270,labelpad=20)
-	im2 = plt.imshow(hs_data,cmap='Greys',alpha=0.8,extent=ext); 
+	im2 = plt.imshow(hs_data,cmap='Greys',alpha=0.8,extent=ext) 
 	# im2 = plt.plot(hs_data,cmap='Greys',alpha=0.5); 
 	# plt.colorbar()
 	# ax.ticklabel_format(useOffset=False, style='plain') #do not use scientific notation 

@@ -1,10 +1,9 @@
-import sys
 import os
 import fnmatch
 from glob import glob
 import shutil
 
-from ctypes import Structure, c_int32, c_uint64, sizeof, byref, windll
+from ctypes import Structure, c_int32, c_uint64, sizeof
 
 class MemoryStatusEx(Structure):
     _fields_ = [
@@ -211,7 +210,7 @@ def outfilename(filename, prefix="", appendix="", extension=""):
 	root, ext = os.path.splitext(os.path.basename(filename))
 	if len(extension) == 0:
 		extension = ext
-	if not "." in extension[0]:
+	if "." not in extension[0]:
 		extension = "." + extension
 	return os.path.join(os.path.dirname(filename), prefix + root + appendix + extension).replace('\\','/')
 

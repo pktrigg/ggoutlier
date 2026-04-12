@@ -1,0 +1,44 @@
+[package]
+name = "ggoutlier"
+
+# conda dependencies for the package need to duplicate pypi dependencies here,
+# they could also have different names, not in this case
+[package.run-dependencies]
+click = "*"
+reportlab = "*"
+pyproj = "*"
+pyshp = "*"
+scipy = "*"
+rasterio = "*"
+numpy = "*"
+pillow = "*"
+matplotlib-base = "*"
+
+[package.build.backend]
+name = "pixi-build-python"
+version = "*"
+
+## using hatchling as the build backend, so we need to specify it as a host dependency
+[package.host-dependencies]
+hatchling = "*"
+
+## Workspace below
+[workspace]
+preview = ["pixi-build"] # needed to enable `pixi build`
+channels = [
+    "conda-forge", 
+    "https://prefix.dev/kk-test",
+]
+platforms = ["win-64", "linux-64", "osx-arm64"]
+
+## These are environment dependencies for the workspace test env
+[dependencies]
+ggoutlier = { path = "." }
+pytest = "*"
+pytest-cov = "*"
+ruff = "*"
+hatchling = "*"
+pip = "*"
+
+[tasks]
+

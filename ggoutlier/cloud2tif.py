@@ -3,22 +3,16 @@ import sys
 import math
 import rasterio
 from rasterio.transform import from_origin
-from rasterio.transform import Affine
 import numpy as np
 
-import geodetic
 import logging
 import gc
 from itertools import product
 
-import rasterio
-from rasterio.crs import CRS
 from rasterio import windows
 
-from scipy.signal import medfilt
 from scipy.signal import medfilt2d
 
-import fileutils
 
 ###############################################################################
 def getsize(filename):

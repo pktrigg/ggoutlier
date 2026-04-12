@@ -14,15 +14,13 @@ import shlex
 import subprocess
 import uuid
 import sys
-import time
 import logging
 import ctypes
 import multiprocessing
-import tempfile
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
-import geodetic
-import fileutils
+from . import geodetic
+from . import fileutils
 
 ###############################################################################
 def runner(cmd, verbose=False):

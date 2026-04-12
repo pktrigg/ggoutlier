@@ -68,24 +68,22 @@
 
 import os.path
 from argparse import ArgumentParser
-from datetime import datetime, timedelta
-import math
+from datetime import datetime
 import numpy as np
 import sys
 import time
-import glob
 import rasterio
 import multiprocessing as mp
 import shapefile
 import logging
 
 # locals
-import fileutils
-import geodetic
-import cloud2tif
-import ggmbesstandard
-import pdfdocument
-import pylasfile
+from . import fileutils
+from . import geodetic
+from . import cloud2tif
+from . import ggmbesstandard
+from . import pdfdocument
+from . import pylasfile
 
 ###########################################################################
 def main(cli_args=sys.argv[1:]):
@@ -157,7 +155,7 @@ def main(cli_args=sys.argv[1:]):
 		log("GGOutlier Version: 4.0")
 		log("GGOutlier started at: %s" % (datetime.now()))
 		log("Username: %s" %(os.getlogin()))
-		log("Computer: %s" %(os.environ['COMPUTERNAME']))
+		log("Computer: %s" %(os.environ.get('COMPUTERNAME', 'Unknown')))
 		log("Number of CPUs %d" %(mp.cpu_count()))	
 		log("QC to Survey Standard: %s" % (args.standard))
 		iho = ggmbesstandard.sp44()
